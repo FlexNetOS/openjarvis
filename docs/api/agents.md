@@ -82,90 +82,11 @@ external agent frameworks via HTTP or subprocess transport.
       show_source: true
       members_order: source
 
----
 
-## OpenClaw Protocol
 
-JSON-line wire protocol for communication between OpenJarvis and external
-OpenClaw agent processes.
-
-### MessageType
-
-::: openjarvis.agents.openclaw_protocol.MessageType
-    options:
-      show_source: true
-      members_order: source
-
-### ProtocolMessage
-
-::: openjarvis.agents.openclaw_protocol.ProtocolMessage
-    options:
-      show_source: true
-      members_order: source
-
-### serialize
-
-::: openjarvis.agents.openclaw_protocol.serialize
-    options:
-      show_source: true
-
-### deserialize
-
-::: openjarvis.agents.openclaw_protocol.deserialize
-    options:
-      show_source: true
-
----
-
-## OpenClaw Transport
-
-Transport abstraction for communicating with OpenClaw agent processes
-via HTTP or subprocess stdin/stdout.
-
-### OpenClawTransport
-
-::: openjarvis.agents.openclaw_transport.OpenClawTransport
-    options:
-      show_source: true
-      members_order: source
-
-### HttpTransport
-
-::: openjarvis.agents.openclaw_transport.HttpTransport
-    options:
-      show_source: true
-      members_order: source
-
-### SubprocessTransport
-
-::: openjarvis.agents.openclaw_transport.SubprocessTransport
-    options:
-      show_source: true
-      members_order: source
-
----
-
-## OpenClaw Plugin
-
-Plugin layer that wraps OpenJarvis engine and memory as an OpenClaw-compatible
-provider and search manager.
-
-### ProviderPlugin
-
-::: openjarvis.agents.openclaw_plugin.ProviderPlugin
-    options:
-      show_source: true
-      members_order: source
-
-### MemorySearchManager
-
-::: openjarvis.agents.openclaw_plugin.MemorySearchManager
-    options:
-      show_source: true
-      members_order: source
-
-### register
-
-::: openjarvis.agents.openclaw_plugin.register
-    options:
-      show_source: true
+!!! note "OpenClaw Infrastructure"
+    The OpenClaw protocol, transport, and plugin modules (`openclaw_protocol.py`,
+    `openclaw_transport.py`, `openclaw_plugin.py`, `openclaw.py`) are part of the
+    OpenClaw agent infrastructure and require the `openjarvis[openclaw]` extra.
+    See the [architecture documentation](../architecture/agents.md#openclaw-infrastructure)
+    for protocol and transport details.

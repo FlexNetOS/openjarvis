@@ -123,8 +123,6 @@ bridge.disconnect()
 | `CHANNEL_MESSAGE_RECEIVED` | Message received from gateway WebSocket |
 | `CHANNEL_MESSAGE_SENT` | Message successfully delivered via WebSocket or HTTP |
 
-::: openjarvis.channels.openclaw_bridge.OpenClawChannelBridge
-    options:
-      show_source: true
-      show_root_heading: true
-      heading_level: 3
+!!! note "Optional dependency"
+    `OpenClawChannelBridge` requires the `openjarvis[openclaw]` extra.
+    See the [Channels architecture](../architecture/channels.md) for design details.
