@@ -711,7 +711,7 @@ class BenchmarkResult:
 ## Adding a New Router Policy
 
 Router policies determine which model handles a given query. All policies
-implement the `RouterPolicy` ABC from `intelligence/_stubs.py`. The
+implement the `RouterPolicy` ABC from `learning/_stubs.py`. The
 `RoutingContext` dataclass is defined in `core/types.py`.
 
 ### Complete Example
@@ -727,7 +727,7 @@ from typing import List, Optional
 
 from openjarvis.core.registry import RouterPolicyRegistry
 from openjarvis.core.types import RoutingContext
-from openjarvis.intelligence._stubs import RouterPolicy
+from openjarvis.learning._stubs import RouterPolicy
 
 
 class QueryLengthPolicy(RouterPolicy):
@@ -797,8 +797,8 @@ Once registered, your policy can be selected via the config file or CLI:
 === "Config (TOML)"
 
     ```toml
-    [learning]
-    default_policy = "query_length"
+    [learning.routing]
+    policy = "query_length"
     ```
 
 === "CLI"
@@ -823,7 +823,7 @@ class RoutingContext:
     metadata: Dict[str, Any] = field(default_factory=dict)
 ```
 
-The `build_routing_context()` helper in `intelligence/router.py` populates
+The `build_routing_context()` helper in `learning/router.py` populates
 this from a raw query string, detecting code and math patterns automatically.
 
 ---
@@ -837,7 +837,7 @@ this from a raw query string, detecting code and math patterns automatically.
 | Agent | `BaseAgent` | `AgentRegistry` | `agents/_stubs.py` |
 | Tool | `BaseTool` | `ToolRegistry` | `tools/_stubs.py` |
 | Benchmark | `BaseBenchmark` | `BenchmarkRegistry` | `bench/_stubs.py` |
-| Router Policy | `RouterPolicy` | `RouterPolicyRegistry` | `intelligence/_stubs.py` |
+| Router Policy | `RouterPolicy` | `RouterPolicyRegistry` | `learning/_stubs.py` |
 | Learning Policy | `LearningPolicy` | `LearningRegistry` | `learning/_stubs.py` |
 
 The general pattern for all extension points:

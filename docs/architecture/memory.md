@@ -335,16 +335,21 @@ class MyMemoryBackend(MemoryBackend):
     def clear(self) -> None: ...
 ```
 
-The default backend is configured in `~/.openjarvis/config.toml`:
+The default backend is configured in `~/.openjarvis/config.toml`. Storage settings live under `[tools.storage]`, and context injection is controlled by `agent.context_from_memory`:
 
 ```toml
-[memory]
+[agent]
+context_from_memory = true
+
+[tools.storage]
 default_backend = "sqlite"
 db_path = "~/.openjarvis/memory.db"
-context_injection = true
 context_top_k = 5
 context_min_score = 0.1
 context_max_tokens = 2048
 chunk_size = 512
 chunk_overlap = 64
 ```
+
+!!! note "Backward compatibility"
+    The `[memory]` TOML section is still accepted as a backward-compatible alias for `[tools.storage]`. The old `context_injection` field is automatically migrated to `agent.context_from_memory` at load time.

@@ -130,6 +130,7 @@ nav:
       - Tools: user-guide/tools.md
       - Telemetry & Traces: user-guide/telemetry.md
       - Benchmarks: user-guide/benchmarks.md
+      - Evaluations: user-guide/evaluations.md
       - Security: user-guide/security.md
       - Channels: user-guide/channels.md
   - Architecture:
@@ -156,6 +157,7 @@ nav:
       - Traces: api/traces.md
       - Telemetry: api/telemetry.md
       - Benchmarks: api/bench.md
+      - Evals: api/evals.md
       - Server: api/server.md
       - Security: api/security.md
       - Channels: api/channels.md

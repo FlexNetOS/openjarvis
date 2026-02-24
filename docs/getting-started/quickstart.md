@@ -235,7 +235,7 @@ To disable this behavior:
     response = j.ask("Hello", context=False)
     ```
 
-Context injection is controlled by the `[memory]` config section. See [Configuration](configuration.md) for details on `context_injection`, `context_top_k`, `context_min_score`, and `context_max_tokens`.
+Context injection is controlled by `agent.context_from_memory` in `config.toml`. The retrieval parameters (`context_top_k`, `context_min_score`, `context_max_tokens`) live under `[tools.storage]`. See [Configuration](configuration.md) for details.
 
 ## Model Management
 

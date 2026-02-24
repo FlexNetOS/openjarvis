@@ -187,7 +187,9 @@ class Jarvis:
         except ImportError:
             pass
 
-        resolved = get_engine(self._config, self._engine_key)
+        pref = self._config.intelligence.preferred_engine
+        engine_key = self._engine_key or pref or None
+        resolved = get_engine(self._config, engine_key)
         if resolved is None:
             raise RuntimeError(
                 "No inference engine available. "
@@ -229,8 +231,8 @@ class Jarvis:
         model: Optional[str] = None,
         agent: Optional[str] = None,
         tools: Optional[List[str]] = None,
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         context: bool = True,
     ) -> str:
         """Send a query and return the response text."""
@@ -252,8 +254,8 @@ class Jarvis:
         model: Optional[str] = None,
         agent: Optional[str] = None,
         tools: Optional[List[str]] = None,
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         context: bool = True,
     ) -> Dict[str, Any]:
         """Send a query and return the full result dict.
@@ -261,6 +263,11 @@ class Jarvis:
         Returns a dict with keys: content, usage, tool_results (if agent mode).
         """
         self._ensure_engine()
+        if temperature is None:
+            temperature = self._config.intelligence.temperature
+        if max_tokens is None:
+            max_tokens = self._config.intelligence.max_tokens
+
         model_name = model or self._model_override
 
         # Resolve model via router if not specified
@@ -285,7 +292,7 @@ class Jarvis:
         messages = [Message(role=Role.USER, content=query)]
 
         # Memory context injection
-        if context and self._config.memory.context_injection:
+        if context and self._config.agent.context_from_memory:
             messages = self._inject_context(query, messages)
 
         result = instrumented_generate(
@@ -364,7 +371,7 @@ class Jarvis:
         ctx = AgentContext()
 
         # Context injection
-        if context and self._config.memory.context_injection:
+        if context and self._config.agent.context_from_memory:
             try:
                 from openjarvis.cli.ask import _get_memory_backend
                 from openjarvis.memory.context import ContextConfig, inject_context

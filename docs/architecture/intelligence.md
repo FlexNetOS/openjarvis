@@ -1,18 +1,21 @@
 # Intelligence Pillar
 
-The Intelligence pillar handles **model management and query routing**. It maintains a catalog of known models with detailed metadata and provides a heuristic router that selects the best model for a given query based on its characteristics.
+The Intelligence pillar represents **the model** — its identity, weights, quantization format, fallback chain, and the catalog of well-known models with detailed metadata. It no longer contains routing logic; query analysis and model selection have moved to the [Learning pillar](learning.md).
 
 ---
 
 ## Purpose
 
-When a user sends a query to OpenJarvis, the system needs to decide which model should handle it. A short, simple question like "What time is it?" does not need a 70B parameter model, while a complex multi-step math problem benefits from the largest available model. The Intelligence pillar encapsulates this decision-making logic.
+The Intelligence pillar answers a single question: *what is the model?* It maintains a catalog of known models with metadata (parameter count, context length, VRAM requirements, supported engines) and provides helpers for registering built-in models and merging models discovered from running engines at runtime.
 
 The pillar provides three key capabilities:
 
 1. **Model catalog** -- a registry of well-known models with metadata (parameter count, context length, VRAM requirements, supported engines)
-2. **Query routing** -- analyzing query characteristics and selecting the optimal model
-3. **Auto-discovery** -- merging models discovered from running engines into the catalog
+2. **Auto-discovery** -- merging models discovered from running engines into the catalog
+3. **Model configuration** -- `IntelligenceConfig` captures the local model's identity, weight paths, quantization, and preferred engine
+
+!!! info "Routing has moved"
+    Query analysis (`build_routing_context`) and model selection (`HeuristicRouter`, `RouterPolicy` ABC) now live in the [Learning pillar](learning.md). Backward-compatible re-exports remain in `intelligence/_stubs.py` and `intelligence/router.py` so existing code continues to work.
 
 ---
 
@@ -118,104 +121,138 @@ For each model ID not already in the registry, a `ModelSpec` is created with the
 
 ---
 
-## HeuristicRouter
+## IntelligenceConfig
 
-The `HeuristicRouter` is a rule-based model router that selects the best model based on query characteristics. It applies six priority rules in order:
-
-### Routing Rules
-
-| Priority | Rule | Condition | Action |
-|----------|------|-----------|--------|
-| 1 | Code detection | Query contains code patterns (backticks, `def`, `class`, `import`, `function`, `=>`, etc.) | Prefer model with "code" or "coder" in name; fall back to largest model |
-| 2 | Math detection | Query contains math keywords (`solve`, `integral`, `equation`, `calculate`, `compute`, etc.) | Select the largest available model |
-| 3 | Short query | Query length < 50 characters, no code/math | Select the smallest available model (faster response) |
-| 4 | Long/complex query | Query length > 500 characters OR contains reasoning keywords (`explain`, `analyze`, `compare`, `step-by-step`, etc.) | Select the largest available model |
-| 5 | High urgency | `urgency > 0.8` | Override to smallest model (fastest response) |
-| 6 | Default fallback | None of the above match | Use `default_model`, then `fallback_model`, then first available |
-
-!!! note "Priority 5 overrides all others"
-    The urgency check (rule 5) is actually evaluated **first** in the code -- if urgency exceeds 0.8, the router immediately returns the smallest model regardless of query content.
-
-### Usage
+The `IntelligenceConfig` dataclass (in `core/config.py`) captures the full identity of the model the system is configured to use, as well as the default sampling parameters for generation:
 
 ```python
-from openjarvis.intelligence import HeuristicRouter, build_routing_context
-
-router = HeuristicRouter(
-    available_models=["qwen3:8b", "llama3.2:3b", "deepseek-coder-v2:16b"],
-    default_model="qwen3:8b",
-    fallback_model="llama3.2:3b",
-)
-
-ctx = build_routing_context("Write a Python function to sort a list")
-model = router.select_model(ctx)  # Returns "deepseek-coder-v2:16b" (has "coder")
-```
-
----
-
-## RouterPolicy and QueryAnalyzer ABCs
-
-The Intelligence pillar now defines the `RouterPolicy` and `QueryAnalyzer` ABCs in `intelligence/_stubs.py`:
-
-```python
-# intelligence/_stubs.py
-class RouterPolicy(ABC):
-    @abstractmethod
-    def select_model(self, context: RoutingContext) -> str:
-        """Return the model registry key best suited for *context*."""
-
-class QueryAnalyzer(ABC):
-    @abstractmethod
-    def analyze(self, query: str) -> RoutingContext:
-        """Analyze a raw query string and return a RoutingContext."""
-```
-
-The `HeuristicRouter` implements both of these ABCs.
-
----
-
-## build_routing_context()
-
-The `build_routing_context()` function analyzes a raw query string and produces a `RoutingContext` dataclass (now defined in `core/types.py`):
-
-```python
-# core/types.py
 @dataclass(slots=True)
-class RoutingContext:
-    query: str = ""
-    query_length: int = 0
-    has_code: bool = False
-    has_math: bool = False
-    language: str = "en"
-    urgency: float = 0.5  # 0 = low priority, 1 = real-time
-    metadata: Dict[str, Any] = field(default_factory=dict)
+class IntelligenceConfig:
+    """The model — identity, paths, quantization, fallback chain, and generation defaults."""
+
+    default_model: str = ""       # Primary model key (e.g., "qwen3:8b")
+    fallback_model: str = ""      # Fallback when default is unavailable
+    model_path: str = ""          # Local weights (HF repo, GGUF file, etc.)
+    checkpoint_path: str = ""     # Checkpoint/adapter path (e.g., LoRA)
+    quantization: str = "none"    # none, fp8, int8, int4, gguf_q4, gguf_q8
+    preferred_engine: str = ""    # Override engine for this model (e.g., "vllm")
+    provider: str = ""            # local, openai, anthropic, google
+    # Generation defaults (overridable per-call)
+    temperature: float = 0.7
+    max_tokens: int = 1024
+    top_p: float = 0.9
+    top_k: int = 40
+    repetition_penalty: float = 1.0
+    stop_sequences: str = ""      # Comma-separated stop strings
 ```
 
-**Code detection** uses regex patterns matching:
+### Model Identity Fields
 
-- Backtick code blocks (`` ``` `` or `` `inline` ``)
-- Language keywords (`def`, `class`, `import`, `function`, `const`, `var`, `let`)
-- Syntax patterns (`if (`, `->`, `=>`, `{ }`, `for x in`, `#include`, `System.out`)
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `default_model` | `str` | `""` | Primary model registry key. Resolved at startup; overrides any engine default. |
+| `fallback_model` | `str` | `""` | Used when the default model is not available on any running engine. |
+| `model_path` | `str` | `""` | Path or HuggingFace repo ID for local weights (e.g., `"./models/qwen3-8b.gguf"` or `"Qwen/Qwen3-8B"`). |
+| `checkpoint_path` | `str` | `""` | Path to a fine-tuned checkpoint or LoRA adapter directory. |
+| `quantization` | `str` | `"none"` | Quantization format. Accepted values: `none`, `fp8`, `int8`, `int4`, `gguf_q4`, `gguf_q8`. |
+| `preferred_engine` | `str` | `""` | When set, `SystemBuilder`, `sdk.py`, and `cli/ask.py` use this engine key instead of `config.engine.default`. |
+| `provider` | `str` | `""` | Model provider hint: `local`, `openai`, `anthropic`, `google`. Used by the Cloud engine backend to route API calls. |
 
-**Math detection** uses regex patterns matching:
+### Generation Default Fields
 
-- Mathematical terms (`solve`, `integral`, `equation`, `proof`, `derivative`, `matrix`)
-- Computational keywords (`calculate`, `compute`, `sigma`, `sum`, `limit`, `probability`)
+These fields set the default sampling parameters for every inference call. Individual calls can override them by passing keyword arguments to `engine.generate()`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `temperature` | `float` | `0.7` | Sampling temperature. Lower values produce more deterministic output; higher values increase diversity. |
+| `max_tokens` | `int` | `1024` | Maximum number of tokens to generate per call. |
+| `top_p` | `float` | `0.9` | Nucleus sampling probability mass. At each step, only tokens comprising the top-p probability mass are considered. |
+| `top_k` | `int` | `40` | Top-k sampling: only consider the top-k most likely tokens at each step. |
+| `repetition_penalty` | `float` | `1.0` | Penalize repeated token sequences. Values greater than 1.0 reduce repetition. |
+| `stop_sequences` | `str` | `""` | Comma-separated stop strings. Generation halts when any stop string appears in the output. |
+
+!!! note "Moved from Agent"
+    Generation parameters (`temperature`, `max_tokens`) previously lived under `[agent]` in the config file. They now live under `[intelligence]`. Old configs with these fields under `[agent]` are automatically migrated at load time. See the [configuration migration guide](../getting-started/configuration.md#migration-guide) for details.
+
+### TOML Configuration
+
+```toml
+[intelligence]
+default_model = "qwen3:8b"
+fallback_model = "llama3.2:3b"
+temperature = 0.7
+max_tokens = 1024
+# top_p = 0.9
+# top_k = 40
+# repetition_penalty = 1.0
+# stop_sequences = ""
+
+# Local weight overrides (optional)
+# model_path = "./models/qwen3-8b-instruct.gguf"
+# checkpoint_path = "./checkpoints/my-lora"
+# quantization = "gguf_q4"
+
+# Engine selection for this model (takes priority over [engine].default)
+# preferred_engine = "vllm"
+
+# Provider for cloud models
+# provider = "openai"
+```
+
+### Engine Selection Priority
+
+When resolving which engine to use, `SystemBuilder`, `sdk.py`, and `cli/ask.py` check `config.intelligence.preferred_engine` before `config.engine.default`:
+
+```
+1. Explicit --engine CLI flag or engine_key= SDK parameter
+2. config.intelligence.preferred_engine  ← new field
+3. config.engine.default
+4. First healthy engine discovered at runtime
+```
+
+This lets you pin a specific model to a specific engine without changing the global engine default. For example, a GGUF quantized model can be pinned to `llamacpp` while the global default remains `ollama`:
+
+```toml
+[engine]
+default = "ollama"
+
+[intelligence]
+default_model = "llama3.2:3b"
+model_path = "./models/llama-3.2-3b.Q4_K_M.gguf"
+quantization = "gguf_q4"
+preferred_engine = "llamacpp"
+```
+
+---
+
+## Public API
+
+`intelligence/__init__.py` exports exactly three names:
 
 ```python
-from openjarvis.intelligence import build_routing_context
-
-ctx = build_routing_context("Solve the integral of x^2 dx")
-# ctx.has_math = True, ctx.has_code = False, ctx.query_length = 32
-
-ctx = build_routing_context("```python\ndef hello():\n    pass\n```")
-# ctx.has_code = True, ctx.has_math = False
+from openjarvis.intelligence import (
+    BUILTIN_MODELS,           # List[ModelSpec] — the full built-in catalog
+    merge_discovered_models,  # (engine_key, model_ids) -> None
+    register_builtin_models,  # () -> None
+)
 ```
+
+### Backward-Compatibility Shims
+
+The following names are still importable from `openjarvis.intelligence` via shim modules, but their canonical locations have moved:
+
+| Name | Old location | Canonical location |
+|------|-------------|-------------------|
+| `RouterPolicy` | `intelligence/_stubs.py` | `learning/_stubs.py` |
+| `QueryAnalyzer` | `intelligence/_stubs.py` | `learning/_stubs.py` |
+| `HeuristicRouter` | `intelligence/router.py` | `learning/router.py` |
+| `build_routing_context` | `intelligence/router.py` | `learning/router.py` |
+| `DefaultQueryAnalyzer` | `intelligence/router.py` | `learning/router.py` |
+
+New code should import from the canonical `learning.*` locations. The shims in `intelligence/_stubs.py` and `intelligence/router.py` are retained for backward compatibility only.
 
 ---
 
 ## Integration with Learning
 
-The `HeuristicRouter` implements the `RouterPolicy` ABC (now defined in `intelligence/_stubs.py`), which means it can be swapped out for a `TraceDrivenPolicy`, `SFTRouterPolicy`, or any other policy via the `RouterPolicyRegistry`. See the [Learning & Traces](learning.md) documentation for details on how trace-driven routing and the broader `LearningPolicy` taxonomy work.
-
-The router is registered as `"heuristic"` in the `RouterPolicyRegistry` and is the default routing policy. Users can switch policies via the `--router` CLI flag or the `learning.default_policy` config setting.
+The Learning pillar consumes the model catalog to make routing decisions. The `HeuristicRouter` and `TraceDrivenPolicy` both read `ModelRegistry` to compare model sizes when selecting between candidates. See the [Learning & Traces](learning.md) documentation for full details on routing policies, the `RouterPolicy` ABC, and the trace-driven feedback loop.

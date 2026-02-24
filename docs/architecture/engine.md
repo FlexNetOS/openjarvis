@@ -234,27 +234,39 @@ Key behaviors:
 
 ## Configuration
 
-Engine hosts and defaults are configured in `~/.openjarvis/config.toml`:
+Engine hosts and defaults are configured in `~/.openjarvis/config.toml` using **nested per-engine sub-sections**:
 
 ```toml
 [engine]
 default = "ollama"
-ollama_host = "http://localhost:11434"
-vllm_host = "http://localhost:8000"
-llamacpp_host = "http://localhost:8080"
-sglang_host = "http://localhost:30000"
+
+[engine.ollama]
+host = "http://localhost:11434"
+
+[engine.vllm]
+host = "http://localhost:8000"
+
+[engine.sglang]
+host = "http://localhost:30000"
+
+# [engine.llamacpp]
+# host = "http://localhost:8080"
+# binary_path = ""
 ```
 
-The `EngineConfig` dataclass maps these settings:
+The `EngineConfig` dataclass and its per-engine sub-dataclasses map these settings:
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `default` | `"ollama"` (hardware-dependent) | Preferred engine backend |
-| `ollama_host` | `http://localhost:11434` | Ollama server URL |
-| `vllm_host` | `http://localhost:8000` | vLLM server URL |
-| `llamacpp_host` | `http://localhost:8080` | llama.cpp server URL |
-| `sglang_host` | `http://localhost:30000` | SGLang server URL |
-| `llamacpp_path` | `""` | Path to llama.cpp binary (for managed mode) |
+| Config Class | Field | Default | Description |
+|---|---|---|---|
+| `EngineConfig` | `default` | `"ollama"` (hardware-dependent) | Preferred engine backend |
+| `OllamaEngineConfig` | `host` | `http://localhost:11434` | Ollama server URL |
+| `VLLMEngineConfig` | `host` | `http://localhost:8000` | vLLM server URL |
+| `SGLangEngineConfig` | `host` | `http://localhost:30000` | SGLang server URL |
+| `LlamaCppEngineConfig` | `host` | `http://localhost:8080` | llama.cpp server URL |
+| `LlamaCppEngineConfig` | `binary_path` | `""` | Path to llama.cpp binary (for managed mode) |
+
+!!! note "Backward compatibility"
+    The old flat field names `ollama_host`, `vllm_host`, `llamacpp_host`, `llamacpp_path`, and `sglang_host` under `[engine]` are still accepted as backward-compatible properties on `EngineConfig`. New configurations should use the nested sub-section format.
 
 ---
 

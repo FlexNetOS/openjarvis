@@ -83,7 +83,7 @@ class TestAskModelResolution:
             cfg.telemetry.enabled = False
             cfg.intelligence.default_model = ""
             cfg.intelligence.fallback_model = ""
-            cfg.memory.context_injection = False
+            cfg.agent.context_from_memory = False
             result = CliRunner().invoke(cli, ["ask", "Hello"])
         assert result.exit_code == 0
 
@@ -107,6 +107,6 @@ class TestAskModelResolution:
             cfg.telemetry.enabled = False
             cfg.intelligence.default_model = ""
             cfg.intelligence.fallback_model = "fallback-model"
-            cfg.memory.context_injection = False
+            cfg.agent.context_from_memory = False
             result = CliRunner().invoke(cli, ["ask", "Hello"])
         assert result.exit_code == 0

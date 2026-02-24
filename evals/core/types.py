@@ -74,4 +74,94 @@ class RunSummary:
     ended_at: float = 0.0
 
 
-__all__ = ["EvalRecord", "EvalResult", "RunConfig", "RunSummary"]
+# ---------------------------------------------------------------------------
+# Eval suite config dataclasses (TOML config system)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class MetaConfig:
+    """Suite-level metadata."""
+
+    name: str = ""
+    description: str = ""
+
+
+@dataclass(slots=True)
+class DefaultsConfig:
+    """Default generation parameters applied to all runs."""
+
+    temperature: float = 0.0
+    max_tokens: int = 2048
+
+
+@dataclass(slots=True)
+class JudgeConfig:
+    """Configuration for the LLM judge."""
+
+    model: str = "gpt-4o"
+    provider: Optional[str] = None
+    temperature: float = 0.0
+    max_tokens: int = 1024
+
+
+@dataclass(slots=True)
+class ExecutionConfig:
+    """Execution-level settings for the eval run."""
+
+    max_workers: int = 4
+    output_dir: str = "results/"
+    seed: int = 42
+
+
+@dataclass(slots=True)
+class ModelConfig:
+    """Configuration for a single model in the eval suite."""
+
+    name: str = ""
+    engine: Optional[str] = None
+    provider: Optional[str] = None
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+
+
+@dataclass(slots=True)
+class BenchmarkConfig:
+    """Configuration for a single benchmark in the eval suite."""
+
+    name: str = ""
+    backend: str = "jarvis-direct"
+    max_samples: Optional[int] = None
+    split: Optional[str] = None
+    agent: Optional[str] = None
+    tools: List[str] = field(default_factory=list)
+    judge_model: Optional[str] = None
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+
+
+@dataclass(slots=True)
+class EvalSuiteConfig:
+    """Top-level configuration for an eval suite (models x benchmarks)."""
+
+    meta: MetaConfig = field(default_factory=MetaConfig)
+    defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
+    judge: JudgeConfig = field(default_factory=JudgeConfig)
+    run: ExecutionConfig = field(default_factory=ExecutionConfig)
+    models: List[ModelConfig] = field(default_factory=list)
+    benchmarks: List[BenchmarkConfig] = field(default_factory=list)
+
+
+__all__ = [
+    "EvalRecord",
+    "EvalResult",
+    "RunConfig",
+    "RunSummary",
+    "MetaConfig",
+    "DefaultsConfig",
+    "JudgeConfig",
+    "ExecutionConfig",
+    "ModelConfig",
+    "BenchmarkConfig",
+    "EvalSuiteConfig",
+]

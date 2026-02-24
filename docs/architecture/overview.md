@@ -9,7 +9,7 @@ OpenJarvis is a research framework for studying on-device AI systems. Its archit
 ```mermaid
 graph TB
     subgraph "Core Pillars"
-        INT["Intelligence<br/><i>Model management<br/>& query routing</i>"]
+        INT["Intelligence<br/><i>Model definition<br/>& catalog</i>"]
         ENG["Engine<br/><i>Inference runtime<br/>backends</i>"]
         AGT["Agentic Logic<br/><i>Agents, tools,<br/>orchestration</i>"]
         MEM["Memory<br/><i>Persistent searchable<br/>storage</i>"]
@@ -28,7 +28,6 @@ graph TB
     AGT -->|"selects model via"| INT
     AGT -->|"generates via"| ENG
     AGT -->|"retrieves context from"| MEM
-    INT -->|"routes using"| LRN
     LRN -->|"learns from traces of"| AGT
     LRN -->|"updates routing for"| INT
 
@@ -51,31 +50,33 @@ graph TB
 
 ### Intelligence
 
-The Intelligence pillar handles **model management and query routing**. It maintains a catalog of known models (`BUILTIN_MODELS`) with metadata such as parameter count, context length, VRAM requirements, and supported engines. When a query arrives, the `HeuristicRouter` analyzes it for characteristics like code patterns, math keywords, length, and urgency, then selects the most appropriate model from those available.
+The Intelligence pillar handles **model definition and catalog**. It maintains a catalog of known models (`BUILTIN_MODELS`) with metadata such as parameter count, context length, VRAM requirements, and supported engines. The `IntelligenceConfig` captures the full identity of the configured model — its weight path, quantization format, preferred engine, fallback chain, and generation defaults (`temperature`, `max_tokens`, `top_p`, `top_k`, `repetition_penalty`, `stop_sequences`).
 
-Models discovered at runtime from running engines are automatically merged into the `ModelRegistry`, so the system always has an up-to-date view of what is available.
+Models discovered at runtime from running engines are automatically merged into the `ModelRegistry`, so the system always has an up-to-date view of what is available. Query routing has moved to the Learning pillar — see the [Learning & Traces](learning.md) documentation.
 
 ### Engine
 
-The Engine pillar provides the **inference runtime** -- the layer that actually runs language models. All backends implement the `InferenceEngine` ABC with a uniform interface: `generate()`, `stream()`, `list_models()`, and `health()`. Supported backends include Ollama, vLLM, SGLang, llama.cpp, and Cloud (OpenAI, Anthropic, Google).
+The Engine pillar provides the **inference runtime** — the layer that actually runs language models. All backends implement the `InferenceEngine` ABC with a uniform interface: `generate()`, `stream()`, `list_models()`, and `health()`. Supported backends include Ollama, vLLM, SGLang, llama.cpp, and Cloud (OpenAI, Anthropic, Google).
 
-Engine discovery probes all registered backends for health, returning healthy engines sorted with the user's configured default first. The system automatically falls back to any available engine if the preferred one is unavailable.
+Each engine is configured via its own sub-section in `config.toml` (e.g., `[engine.ollama]`, `[engine.vllm]`, `[engine.llamacpp]`). Engine discovery probes all registered backends for health, returning healthy engines sorted with the user's configured default first. The system automatically falls back to any available engine if the preferred one is unavailable.
 
 ### Agentic Logic
 
 The Agentic Logic pillar implements **pluggable agents** that handle queries with varying levels of sophistication. `SimpleAgent` provides single-turn query-to-response without tools. `OrchestratorAgent` implements a multi-turn tool-calling loop where the LLM can invoke tools like `calculator`, `think`, `retrieval`, `llm`, and `file_read`, with results fed back for further processing. `OpenClawAgent` communicates with external OpenClaw servers via HTTP or subprocess transport.
 
-All agents implement the `BaseAgent` ABC with a `run()` method, and are registered via `@AgentRegistry.register("name")`.
+Agent behavior is configured through `[agent]` in `config.toml`, including the default agent, turn limits, tool list, optional system prompt, and the `context_from_memory` flag (previously `context_injection`) that controls automatic memory context injection. All agents implement the `BaseAgent` ABC with a `run()` method, and are registered via `@AgentRegistry.register("name")`.
 
 ### Memory
 
-The Memory pillar provides **persistent, searchable storage** for documents and knowledge. Five backends are available: SQLite/FTS5 (zero-dependency default), FAISS (dense vector retrieval), ColBERTv2 (late interaction), BM25 (classic term-frequency), and Hybrid (Reciprocal Rank Fusion of sparse + dense).
+The Memory pillar provides **persistent, searchable storage** for documents and knowledge. Five backends are available: SQLite/FTS5 (zero-dependency default), FAISS (dense vector retrieval), ColBERTv2 (late interaction), BM25 (classic term-frequency), and Hybrid (Reciprocal Rank Fusion of sparse + dense). Storage backends are configured under `[tools.storage]` in `config.toml` (the `[memory]` section is still accepted as a backward-compatible alias).
 
-The memory pipeline includes document ingestion, chunking, embedding generation, and context injection. When a user sends a query, relevant documents are retrieved and prepended to the prompt with source attribution.
+The memory pipeline includes document ingestion, chunking, embedding generation, and context injection. When a user sends a query and `agent.context_from_memory` is enabled, relevant documents are retrieved and prepended to the prompt with source attribution.
 
 ### Learning & Traces (Cross-cutting)
 
-The Learning system is a cross-cutting concern that connects all pillars through **trace-driven feedback**. Every agent interaction can produce a `Trace` capturing the full sequence of steps -- routing decisions, memory retrieval, inference calls, tool invocations, and final responses. The `TraceAnalyzer` computes statistics from accumulated traces, and the `TraceDrivenPolicy` uses these statistics to learn which model/agent/tool combinations produce the best outcomes for different query types.
+The Learning system is a cross-cutting concern that connects all pillars through **trace-driven feedback**. Every agent interaction can produce a `Trace` capturing the full sequence of steps — routing decisions, memory retrieval, inference calls, tool invocations, and final responses. The `TraceAnalyzer` computes statistics from accumulated traces, and the `TraceDrivenPolicy` uses these statistics to learn which model/agent/tool combinations produce the best outcomes for different query types.
+
+The learning system is configured through nested sub-sections in `config.toml`: `[learning.routing]` controls the router policy (heuristic, learned, sft, grpo), `[learning.intelligence]` controls the model-level learning policy, `[learning.agent]` controls agent advisor and ICL updater policies, and `[learning.metrics]` sets the composite reward function weights.
 
 ---
 
@@ -134,10 +135,10 @@ src/openjarvis/
         config.py           JarvisConfig, hardware detection, TOML loading
         events.py           EventBus pub/sub system (EventType, Event)
 
-    intelligence/       Intelligence pillar -- model management & routing
-        router.py           HeuristicRouter, build_routing_context()
+    intelligence/       Intelligence pillar -- model definition & catalog
         model_catalog.py    BUILTIN_MODELS list, merge_discovered_models()
-        _stubs.py           (Shared with learning -- RoutingContext)
+        _stubs.py           (backward-compat shim -- re-exports from learning._stubs)
+        router.py           (backward-compat shim -- re-exports from learning.router)
 
     engine/             Engine pillar -- inference runtime backends
         _stubs.py           InferenceEngine ABC
@@ -173,7 +174,8 @@ src/openjarvis/
         embeddings.py       Embedder ABC, SentenceTransformerEmbedder
 
     learning/           Learning system -- router policies & rewards
-        _stubs.py           RouterPolicy ABC, RewardFunction ABC, RoutingContext
+        _stubs.py           RouterPolicy ABC, QueryAnalyzer ABC, RewardFunction ABC, RoutingContext
+        router.py           HeuristicRouter, DefaultQueryAnalyzer, build_routing_context()
         heuristic_policy.py Wires HeuristicRouter into RouterPolicyRegistry
         trace_policy.py     TraceDrivenPolicy (learns from trace outcomes)
         grpo_policy.py      GRPORouterPolicy (stub for future RL)

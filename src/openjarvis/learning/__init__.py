@@ -1,9 +1,18 @@
-"""Learning pillar — router policy and reward functions."""
+"""Learning pillar — router policies, reward functions, and trace-driven learning."""
 
 from __future__ import annotations
 
-from openjarvis.learning._stubs import RewardFunction, RouterPolicy, RoutingContext
+from openjarvis.learning._stubs import (
+    QueryAnalyzer,
+    RewardFunction,
+    RouterPolicy,
+    RoutingContext,
+)
 from openjarvis.learning.heuristic_reward import HeuristicRewardFunction
+from openjarvis.learning.router import (
+    HeuristicRouter,
+    build_routing_context,
+)
 
 
 def ensure_registered() -> None:
@@ -56,8 +65,11 @@ def ensure_registered() -> None:
 
 __all__ = [
     "HeuristicRewardFunction",
+    "HeuristicRouter",
+    "QueryAnalyzer",
     "RewardFunction",
     "RouterPolicy",
     "RoutingContext",
+    "build_routing_context",
     "ensure_registered",
 ]

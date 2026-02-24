@@ -22,4 +22,5 @@ classes, concrete implementations, and utility functions.
 | [Traces](traces.md) | Trace storage, collection, and analysis |
 | [Telemetry](telemetry.md) | Telemetry storage, aggregation, and instrumented wrappers |
 | [Benchmarks](bench.md) | Benchmark ABC, suite runner, latency and throughput benchmarks |
+| [Evals](evals.md) | Evaluation framework: backends, dataset providers, scorers, and suite runner |
 | [Server](server.md) | FastAPI application, OpenAI-compatible routes, and Pydantic models |

@@ -190,35 +190,220 @@ def recommend_engine(hw: HardwareInfo) -> str:
 
 
 @dataclass(slots=True)
+class OllamaEngineConfig:
+    """Per-engine config for Ollama."""
+
+    host: str = "http://localhost:11434"
+
+
+@dataclass(slots=True)
+class VLLMEngineConfig:
+    """Per-engine config for vLLM."""
+
+    host: str = "http://localhost:8000"
+
+
+@dataclass(slots=True)
+class SGLangEngineConfig:
+    """Per-engine config for SGLang."""
+
+    host: str = "http://localhost:30000"
+
+
+@dataclass(slots=True)
+class LlamaCppEngineConfig:
+    """Per-engine config for llama.cpp."""
+
+    host: str = "http://localhost:8080"
+    binary_path: str = ""
+
+
+@dataclass
 class EngineConfig:
-    """Inference engine settings."""
+    """Inference engine settings with nested per-engine configs."""
 
     default: str = "ollama"
-    ollama_host: str = "http://localhost:11434"
-    vllm_host: str = "http://localhost:8000"
-    llamacpp_host: str = "http://localhost:8080"
-    llamacpp_path: str = ""
-    sglang_host: str = "http://localhost:30000"
+    ollama: OllamaEngineConfig = field(default_factory=OllamaEngineConfig)
+    vllm: VLLMEngineConfig = field(default_factory=VLLMEngineConfig)
+    sglang: SGLangEngineConfig = field(default_factory=SGLangEngineConfig)
+    llamacpp: LlamaCppEngineConfig = field(default_factory=LlamaCppEngineConfig)
+
+    # Backward-compat properties for old flat attribute names
+    @property
+    def ollama_host(self) -> str:
+        """Deprecated: use ``engine.ollama.host``."""
+        return self.ollama.host
+
+    @ollama_host.setter
+    def ollama_host(self, value: str) -> None:
+        self.ollama.host = value
+
+    @property
+    def vllm_host(self) -> str:
+        """Deprecated: use ``engine.vllm.host``."""
+        return self.vllm.host
+
+    @vllm_host.setter
+    def vllm_host(self, value: str) -> None:
+        self.vllm.host = value
+
+    @property
+    def llamacpp_host(self) -> str:
+        """Deprecated: use ``engine.llamacpp.host``."""
+        return self.llamacpp.host
+
+    @llamacpp_host.setter
+    def llamacpp_host(self, value: str) -> None:
+        self.llamacpp.host = value
+
+    @property
+    def llamacpp_path(self) -> str:
+        """Deprecated: use ``engine.llamacpp.binary_path``."""
+        return self.llamacpp.binary_path
+
+    @llamacpp_path.setter
+    def llamacpp_path(self, value: str) -> None:
+        self.llamacpp.binary_path = value
+
+    @property
+    def sglang_host(self) -> str:
+        """Deprecated: use ``engine.sglang.host``."""
+        return self.sglang.host
+
+    @sglang_host.setter
+    def sglang_host(self, value: str) -> None:
+        self.sglang.host = value
 
 
 @dataclass(slots=True)
 class IntelligenceConfig:
-    """Model routing defaults."""
+    """The model — identity, paths, quantization, and generation defaults."""
 
     default_model: str = ""
     fallback_model: str = ""
+    model_path: str = ""          # Local weights (HF repo, GGUF file, etc.)
+    checkpoint_path: str = ""     # Checkpoint/adapter path
+    quantization: str = "none"    # none, fp8, int8, int4, gguf_q4, gguf_q8
+    preferred_engine: str = ""    # Override engine for this model (e.g., "vllm")
+    provider: str = ""            # local, openai, anthropic, google
+    # Generation defaults (overridable per-call)
+    temperature: float = 0.7
+    max_tokens: int = 1024
+    top_p: float = 0.9
+    top_k: int = 40
+    repetition_penalty: float = 1.0
+    stop_sequences: str = ""      # Comma-separated stop strings
 
 
 @dataclass(slots=True)
-class LearningConfig:
-    """Learning / router policy settings."""
+class RoutingLearningConfig:
+    """Routing sub-policy config within Learning."""
 
-    default_policy: str = "heuristic"
-    intelligence_policy: str = "none"  # "none" | "sft" — updates model routing
-    agent_policy: str = "none"  # "none" | "agent_advisor" — updates agent logic
-    tools_policy: str = "none"  # "none" | "icl_updater" — updates tool usage
-    reward_weights: str = ""  # comma-separated key=value, e.g. "latency=0.4,cost=0.3"
-    update_interval: int = 10  # traces between learning updates
+    policy: str = "heuristic"   # heuristic | learned | grpo
+    min_samples: int = 5        # Min traces before trusting learned routing
+
+
+@dataclass(slots=True)
+class IntelligenceLearningConfig:
+    """Intelligence sub-policy config within Learning."""
+
+    policy: str = "none"  # none | sft
+
+
+@dataclass(slots=True)
+class AgentLearningConfig:
+    """Agent sub-policy config within Learning."""
+
+    policy: str = "none"  # none | agent_advisor | icl_updater
+    max_icl_examples: int = 20
+    advisor_confidence_threshold: float = 0.7
+
+
+@dataclass(slots=True)
+class MetricsConfig:
+    """Reward / optimization metric weights."""
+
+    accuracy_weight: float = 0.6
+    latency_weight: float = 0.2
+    cost_weight: float = 0.1
+    efficiency_weight: float = 0.1
+
+
+@dataclass
+class LearningConfig:
+    """Learning system settings with per-pillar sub-policies."""
+
+    enabled: bool = False
+    update_interval: int = 100  # traces between automatic policy updates
+    auto_update: bool = False   # auto-trigger updates on interval
+    routing: RoutingLearningConfig = field(default_factory=RoutingLearningConfig)
+    intelligence: IntelligenceLearningConfig = field(
+        default_factory=IntelligenceLearningConfig,
+    )
+    agent: AgentLearningConfig = field(default_factory=AgentLearningConfig)
+    metrics: MetricsConfig = field(default_factory=MetricsConfig)
+
+    # Backward-compat properties for old flat field names
+    @property
+    def default_policy(self) -> str:
+        """Deprecated: use ``learning.routing.policy``."""
+        return self.routing.policy
+
+    @default_policy.setter
+    def default_policy(self, value: str) -> None:
+        self.routing.policy = value
+
+    @property
+    def intelligence_policy(self) -> str:
+        """Deprecated: use ``learning.intelligence.policy``."""
+        return self.intelligence.policy
+
+    @intelligence_policy.setter
+    def intelligence_policy(self, value: str) -> None:
+        self.intelligence.policy = value
+
+    @property
+    def agent_policy(self) -> str:
+        """Deprecated: use ``learning.agent.policy``."""
+        return self.agent.policy
+
+    @agent_policy.setter
+    def agent_policy(self, value: str) -> None:
+        self.agent.policy = value
+
+    @property
+    def reward_weights(self) -> str:
+        """Deprecated: use ``learning.metrics.*``."""
+        parts = []
+        m = self.metrics
+        if m.latency_weight:
+            parts.append(f"latency={m.latency_weight}")
+        if m.cost_weight:
+            parts.append(f"cost={m.cost_weight}")
+        if m.efficiency_weight:
+            parts.append(f"efficiency={m.efficiency_weight}")
+        if m.accuracy_weight:
+            parts.append(f"accuracy={m.accuracy_weight}")
+        return ",".join(parts)
+
+    @reward_weights.setter
+    def reward_weights(self, value: str) -> None:
+        if not value:
+            return
+        for part in value.split(","):
+            if "=" not in part:
+                continue
+            key, val = part.strip().split("=", 1)
+            key = key.strip()
+            fval = float(val.strip())
+            if key == "accuracy":
+                self.metrics.accuracy_weight = fval
+            elif key == "latency":
+                self.metrics.latency_weight = fval
+            elif key == "cost":
+                self.metrics.cost_weight = fval
+            elif key == "efficiency":
+                self.metrics.efficiency_weight = fval
 
 
 @dataclass(slots=True)
@@ -227,7 +412,6 @@ class StorageConfig:
 
     default_backend: str = "sqlite"
     db_path: str = str(DEFAULT_CONFIG_DIR / "memory.db")
-    context_injection: bool = True
     context_top_k: int = 5
     context_min_score: float = 0.1
     context_max_tokens: int = 2048
@@ -245,8 +429,6 @@ class MCPConfig:
 
     enabled: bool = True
     servers: str = ""  # JSON list of MCP server configs
-    expose_storage: bool = True
-    expose_llm: bool = True
 
 
 @dataclass(slots=True)
@@ -258,15 +440,27 @@ class ToolsConfig:
     enabled: str = ""  # comma-separated default tools
 
 
-@dataclass(slots=True)
+@dataclass
 class AgentConfig:
-    """Agent defaults."""
+    """Agent harness settings — orchestration, tools, system prompt."""
 
     default_agent: str = "simple"
-    max_turns: int = 3
-    default_tools: str = ""  # comma-separated tool names
-    temperature: float = 0.7
-    max_tokens: int = 1024
+    max_turns: int = 10
+    tools: str = ""               # comma-separated tool names
+    objective: str = ""           # concise purpose for routing/learning/docs
+    system_prompt: str = ""       # inline system prompt (takes precedence if set)
+    system_prompt_path: str = ""  # path to system prompt file (.txt, .md)
+    context_from_memory: bool = True  # inject relevant memory context into prompts
+
+    # Backward-compat property for old field name
+    @property
+    def default_tools(self) -> str:
+        """Deprecated: use ``agent.tools``."""
+        return self.tools
+
+    @default_tools.setter
+    def default_tools(self, value: str) -> None:
+        self.tools = value
 
 
 @dataclass(slots=True)
@@ -495,10 +689,53 @@ class JarvisConfig:
 
 
 def _apply_toml_section(target: Any, section: Dict[str, Any]) -> None:
-    """Overlay TOML key/value pairs onto a dataclass instance."""
+    """Overlay TOML key/value pairs onto a dataclass instance.
+
+    Recursively handles nested dicts when the target attribute is itself
+    a dataclass.
+    """
     for key, value in section.items():
         if hasattr(target, key):
-            setattr(target, key, value)
+            if isinstance(value, dict):
+                nested = getattr(target, key)
+                if hasattr(nested, "__dataclass_fields__"):
+                    _apply_toml_section(nested, value)
+                else:
+                    setattr(target, key, value)
+            else:
+                setattr(target, key, value)
+
+
+def _migrate_toml_data(data: Dict[str, Any], cfg: "JarvisConfig") -> None:
+    """Migrate old-format TOML keys to new structure in-place.
+
+    Handles cross-section moves that can't be solved by backward-compat
+    properties alone (e.g. ``agent.temperature`` → ``intelligence.temperature``).
+    """
+    # agent.temperature / agent.max_tokens → intelligence.*
+    if "agent" in data:
+        agent_data = data["agent"]
+        intel_data = data.setdefault("intelligence", {})
+        for moved_key in ("temperature", "max_tokens"):
+            if moved_key in agent_data:
+                intel_data.setdefault(moved_key, agent_data.pop(moved_key))
+
+    # context_injection from memory / tools.storage → agent.context_from_memory
+    for src_section in ("memory",):
+        src = data.get(src_section, {})
+        if isinstance(src, dict) and "context_injection" in src:
+            data.setdefault("agent", {}).setdefault(
+                "context_from_memory", src.pop("context_injection"),
+            )
+
+    if "tools" in data:
+        tools_data = data["tools"]
+        if isinstance(tools_data, dict):
+            storage_sub = tools_data.get("storage", {})
+            if isinstance(storage_sub, dict) and "context_injection" in storage_sub:
+                data.setdefault("agent", {}).setdefault(
+                    "context_from_memory", storage_sub.pop("context_injection"),
+                )
 
 
 def load_config(path: Optional[Path] = None) -> JarvisConfig:
@@ -518,48 +755,25 @@ def load_config(path: Optional[Path] = None) -> JarvisConfig:
         with open(config_path, "rb") as fh:
             data = tomllib.load(fh)
 
-        # Simple top-level sections
-        simple_sections = (
-            "engine", "intelligence", "learning",
-            "agent", "server", "telemetry", "traces", "security",
+        # Run backward-compat migrations before applying
+        _migrate_toml_data(data, cfg)
+
+        # All top-level sections — recursive _apply_toml_section handles
+        # nested sub-configs (engine.ollama, learning.routing, channel.*, etc.)
+        top_sections = (
+            "engine", "intelligence", "learning", "agent",
+            "server", "telemetry", "traces", "security",
+            "channel", "tools",
         )
-        for section_name in simple_sections:
+        for section_name in top_sections:
             if section_name in data:
-                _apply_toml_section(getattr(cfg, section_name), data[section_name])
+                _apply_toml_section(
+                    getattr(cfg, section_name), data[section_name],
+                )
 
         # Memory: accept [memory] (old) → maps to tools.storage
         if "memory" in data:
             _apply_toml_section(cfg.tools.storage, data["memory"])
-
-        # [channel] with nested per-channel sub-configs
-        if "channel" in data:
-            ch_data = data["channel"]
-            # Top-level channel keys (enabled, default_channel, etc.)
-            for key, value in ch_data.items():
-                if not isinstance(value, dict) and hasattr(cfg.channel, key):
-                    setattr(cfg.channel, key, value)
-            # Nested per-channel configs
-            for sub in (
-                "telegram", "discord", "slack", "webhook", "email",
-                "whatsapp", "signal", "google_chat", "irc", "webchat",
-                "teams", "matrix", "mattermost", "feishu", "bluebubbles",
-            ):
-                if sub in ch_data and isinstance(ch_data[sub], dict):
-                    _apply_toml_section(getattr(cfg.channel, sub), ch_data[sub])
-
-        # Tools: accept [tools] and nested [tools.storage], [tools.mcp]
-        if "tools" in data:
-            tools_data = data["tools"]
-            # Top-level tools keys (e.g. enabled)
-            for key, value in tools_data.items():
-                if not isinstance(value, dict) and hasattr(cfg.tools, key):
-                    setattr(cfg.tools, key, value)
-            # [tools.storage]
-            if "storage" in tools_data:
-                _apply_toml_section(cfg.tools.storage, tools_data["storage"])
-            # [tools.mcp]
-            if "mcp" in tools_data:
-                _apply_toml_section(cfg.tools.mcp, tools_data["mcp"])
 
     return cfg
 
@@ -585,20 +799,49 @@ def generate_default_toml(hw: HardwareInfo) -> str:
 
 [engine]
 default = "{engine}"
-ollama_host = "http://localhost:11434"
-vllm_host = "http://localhost:8000"
-sglang_host = "http://localhost:30000"
+
+[engine.ollama]
+host = "http://localhost:11434"
+
+[engine.vllm]
+host = "http://localhost:8000"
+
+[engine.sglang]
+host = "http://localhost:30000"
+
+# [engine.llamacpp]
+# host = "http://localhost:8080"
+# binary_path = ""
 
 [intelligence]
 default_model = ""
 fallback_model = ""
-
-[memory]
-default_backend = "sqlite"
+# model_path = ""              # Local weights (HF repo, GGUF file, etc.)
+# checkpoint_path = ""         # Checkpoint/adapter path
+# quantization = "none"        # none, fp8, int8, int4, gguf_q4, gguf_q8
+# preferred_engine = ""        # Override engine for this model (e.g., "vllm")
+# provider = ""                # local, openai, anthropic, google
+temperature = 0.7
+max_tokens = 1024
+# top_p = 0.9
+# top_k = 40
+# repetition_penalty = 1.0
+# stop_sequences = ""
 
 [agent]
 default_agent = "simple"
 max_turns = 10
+# tools = ""                   # Comma-separated tool names
+# objective = ""               # Concise purpose string
+# system_prompt = ""           # Inline system prompt
+# system_prompt_path = ""      # Path to system prompt file
+context_from_memory = true
+
+[tools.storage]
+default_backend = "sqlite"
+
+[tools.mcp]
+enabled = true
 
 [server]
 host = "0.0.0.0"
@@ -606,11 +849,25 @@ port = 8000
 agent = "orchestrator"
 
 [learning]
-default_policy = "heuristic"
-# intelligence_policy = "none"   # "sft" to learn from traces
-# agent_policy = "none"          # "agent_advisor" for LM-guided restructuring
-# tools_policy = "none"          # "icl_updater" for ICL example + skill discovery
-# update_interval = 10
+enabled = false
+update_interval = 100
+# auto_update = false
+
+[learning.routing]
+policy = "heuristic"
+# min_samples = 5
+
+# [learning.intelligence]
+# policy = "none"              # "sft" to learn from traces
+
+# [learning.agent]
+# policy = "none"              # "agent_advisor" | "icl_updater"
+
+# [learning.metrics]
+# accuracy_weight = 0.6
+# latency_weight = 0.2
+# cost_weight = 0.1
+# efficiency_weight = 0.1
 
 [telemetry]
 enabled = true
@@ -684,6 +941,7 @@ enforce_tool_confirmation = true
 
 __all__ = [
     "AgentConfig",
+    "AgentLearningConfig",
     "BlueBubblesChannelConfig",
     "ChannelConfig",
     "DEFAULT_CONFIG_DIR",
@@ -697,12 +955,18 @@ __all__ = [
     "HardwareInfo",
     "IRCChannelConfig",
     "IntelligenceConfig",
+    "IntelligenceLearningConfig",
     "JarvisConfig",
     "LearningConfig",
+    "LlamaCppEngineConfig",
     "MCPConfig",
     "MatrixChannelConfig",
     "MattermostChannelConfig",
     "MemoryConfig",
+    "MetricsConfig",
+    "OllamaEngineConfig",
+    "RoutingLearningConfig",
+    "SGLangEngineConfig",
     "SecurityConfig",
     "ServerConfig",
     "SignalChannelConfig",
@@ -713,6 +977,7 @@ __all__ = [
     "TelemetryConfig",
     "ToolsConfig",
     "TracesConfig",
+    "VLLMEngineConfig",
     "WebChatChannelConfig",
     "WebhookChannelConfig",
     "WhatsAppChannelConfig",

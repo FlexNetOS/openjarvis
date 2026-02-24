@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from openjarvis.core.registry import RouterPolicyRegistry
 from openjarvis.core.types import RoutingContext
-from openjarvis.intelligence._stubs import RouterPolicy
+from openjarvis.learning._stubs import RouterPolicy
 from openjarvis.traces.analyzer import TraceAnalyzer
 
 # Query classification for grouping traces

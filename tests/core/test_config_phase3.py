@@ -15,21 +15,23 @@ class TestAgentConfig:
     def test_defaults(self):
         cfg = AgentConfig()
         assert cfg.default_agent == "simple"
-        assert cfg.max_turns == 3
-        assert cfg.default_tools == ""
-        assert cfg.temperature == 0.7
-        assert cfg.max_tokens == 1024
+        assert cfg.max_turns == 10
+        assert cfg.tools == ""
+        assert cfg.default_tools == ""  # backward-compat property
+        assert cfg.objective == ""
+        assert cfg.system_prompt == ""
+        assert cfg.system_prompt_path == ""
+        assert cfg.context_from_memory is True
 
     def test_custom_values(self):
         cfg = AgentConfig(
             default_agent="orchestrator",
             max_turns=5,
-            default_tools="calculator,think",
-            temperature=0.1,
-            max_tokens=512,
+            tools="calculator,think",
         )
         assert cfg.default_agent == "orchestrator"
-        assert cfg.default_tools == "calculator,think"
+        assert cfg.tools == "calculator,think"
+        assert cfg.default_tools == "calculator,think"  # backward-compat
 
 
 class TestServerConfig:
@@ -55,9 +57,11 @@ class TestJarvisConfig:
 
     def test_agent_config_expanded(self):
         cfg = JarvisConfig()
-        assert hasattr(cfg.agent, "default_tools")
-        assert hasattr(cfg.agent, "temperature")
-        assert hasattr(cfg.agent, "max_tokens")
+        assert hasattr(cfg.agent, "default_tools")  # backward-compat property
+        assert hasattr(cfg.agent, "tools")
+        assert hasattr(cfg.agent, "objective")
+        assert hasattr(cfg.agent, "system_prompt")
+        assert hasattr(cfg.agent, "context_from_memory")
 
 
 class TestGenerateDefaultToml:

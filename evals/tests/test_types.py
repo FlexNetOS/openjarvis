@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
-from evals.core.types import EvalRecord, EvalResult, RunConfig, RunSummary
+from evals.core.types import (
+    BenchmarkConfig,
+    DefaultsConfig,
+    EvalRecord,
+    EvalResult,
+    EvalSuiteConfig,
+    ExecutionConfig,
+    JudgeConfig,
+    MetaConfig,
+    ModelConfig,
+    RunConfig,
+    RunSummary,
+)
 
 
 class TestEvalRecord:
@@ -86,3 +98,138 @@ class TestRunSummary:
         assert s.accuracy == 0.495
         assert s.per_subject["math"]["accuracy"] == 0.5
         assert s.started_at == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Eval suite config dataclasses
+# ---------------------------------------------------------------------------
+
+
+class TestMetaConfig:
+    def test_defaults(self):
+        m = MetaConfig()
+        assert m.name == ""
+        assert m.description == ""
+
+    def test_with_values(self):
+        m = MetaConfig(name="suite-1", description="First suite")
+        assert m.name == "suite-1"
+        assert m.description == "First suite"
+
+
+class TestDefaultsConfig:
+    def test_defaults(self):
+        d = DefaultsConfig()
+        assert d.temperature == 0.0
+        assert d.max_tokens == 2048
+
+    def test_with_values(self):
+        d = DefaultsConfig(temperature=0.7, max_tokens=4096)
+        assert d.temperature == 0.7
+        assert d.max_tokens == 4096
+
+
+class TestJudgeConfig:
+    def test_defaults(self):
+        j = JudgeConfig()
+        assert j.model == "gpt-4o"
+        assert j.provider is None
+        assert j.temperature == 0.0
+        assert j.max_tokens == 1024
+
+    def test_with_values(self):
+        j = JudgeConfig(model="claude", provider="anthropic", temperature=0.1)
+        assert j.model == "claude"
+        assert j.provider == "anthropic"
+        assert j.temperature == 0.1
+
+
+class TestExecutionConfig:
+    def test_defaults(self):
+        e = ExecutionConfig()
+        assert e.max_workers == 4
+        assert e.output_dir == "results/"
+        assert e.seed == 42
+
+    def test_with_values(self):
+        e = ExecutionConfig(max_workers=16, output_dir="out/", seed=99)
+        assert e.max_workers == 16
+        assert e.output_dir == "out/"
+        assert e.seed == 99
+
+
+class TestModelConfig:
+    def test_required_name(self):
+        m = ModelConfig(name="qwen3:8b")
+        assert m.name == "qwen3:8b"
+        assert m.engine is None
+        assert m.provider is None
+        assert m.temperature is None
+        assert m.max_tokens is None
+
+    def test_with_overrides(self):
+        m = ModelConfig(
+            name="gpt-4o", engine="cloud", provider="openai",
+            temperature=0.5, max_tokens=4096,
+        )
+        assert m.engine == "cloud"
+        assert m.provider == "openai"
+        assert m.temperature == 0.5
+        assert m.max_tokens == 4096
+
+
+class TestBenchmarkConfig:
+    def test_defaults(self):
+        b = BenchmarkConfig(name="supergpqa")
+        assert b.name == "supergpqa"
+        assert b.backend == "jarvis-direct"
+        assert b.max_samples is None
+        assert b.split is None
+        assert b.agent is None
+        assert b.tools == []
+        assert b.judge_model is None
+        assert b.temperature is None
+        assert b.max_tokens is None
+
+    def test_with_overrides(self):
+        b = BenchmarkConfig(
+            name="gaia", backend="jarvis-agent", max_samples=50,
+            split="test", agent="orchestrator",
+            tools=["calc", "think"], judge_model="custom-judge",
+            temperature=0.3, max_tokens=1024,
+        )
+        assert b.backend == "jarvis-agent"
+        assert b.max_samples == 50
+        assert b.split == "test"
+        assert b.agent == "orchestrator"
+        assert b.tools == ["calc", "think"]
+        assert b.judge_model == "custom-judge"
+        assert b.temperature == 0.3
+
+    def test_tools_list_independent(self):
+        """Each BenchmarkConfig instance should have its own tools list."""
+        b1 = BenchmarkConfig(name="a")
+        b2 = BenchmarkConfig(name="b")
+        b1.tools.append("calc")
+        assert b2.tools == []
+
+
+class TestEvalSuiteConfig:
+    def test_defaults(self):
+        s = EvalSuiteConfig()
+        assert isinstance(s.meta, MetaConfig)
+        assert isinstance(s.defaults, DefaultsConfig)
+        assert isinstance(s.judge, JudgeConfig)
+        assert isinstance(s.run, ExecutionConfig)
+        assert s.models == []
+        assert s.benchmarks == []
+
+    def test_with_entries(self):
+        s = EvalSuiteConfig(
+            meta=MetaConfig(name="test"),
+            models=[ModelConfig(name="m1"), ModelConfig(name="m2")],
+            benchmarks=[BenchmarkConfig(name="supergpqa")],
+        )
+        assert s.meta.name == "test"
+        assert len(s.models) == 2
+        assert len(s.benchmarks) == 1

@@ -17,10 +17,10 @@ All learning policies are registered in the `LearningRegistry` (in `core/registr
 
 ## RouterPolicy ABC
 
-The `RouterPolicy` ABC and the `QueryAnalyzer` ABC are defined in `intelligence/_stubs.py`:
+The `RouterPolicy` ABC and the `QueryAnalyzer` ABC are defined in `learning/_stubs.py`:
 
 ```python
-# intelligence/_stubs.py
+# learning/_stubs.py
 class RouterPolicy(ABC):
     @abstractmethod
     def select_model(self, context: RoutingContext) -> str:
@@ -33,7 +33,7 @@ class QueryAnalyzer(ABC):
 ```
 
 !!! note "Backward compatibility"
-    The `RouterPolicy` and `RoutingContext` names are still importable from `openjarvis.learning._stubs` via backward-compatibility re-exports, but the canonical locations are now `openjarvis.intelligence._stubs` (for `RouterPolicy` and `QueryAnalyzer`) and `openjarvis.core.types` (for `RoutingContext`).
+    The canonical locations are now `openjarvis.learning._stubs` (for `RouterPolicy` and `QueryAnalyzer`) and `openjarvis.core.types` (for `RoutingContext`). The old `openjarvis.intelligence._stubs` import path still works via a backward-compatibility shim, but new code should import from `openjarvis.learning._stubs`.
 
 ### RoutingContext
 
@@ -77,8 +77,8 @@ And these additional learning policies (registered in `LearningRegistry`):
 Users select a policy via `config.toml` or the `--router` CLI flag:
 
 ```toml
-[learning]
-default_policy = "heuristic"
+[learning.routing]
+policy = "heuristic"
 ```
 
 ```bash
@@ -104,9 +104,65 @@ This ensures that policies are available even after `RouterPolicyRegistry.clear(
 
 ## HeuristicRouter (Heuristic Policy)
 
-The `HeuristicRouter` is the default routing policy. It uses static rules to select models based on query characteristics. See the [Intelligence Pillar](intelligence.md) documentation for full details on its six priority rules.
+The `HeuristicRouter` is the default routing policy. It is defined in `learning/router.py` and applies six static priority rules to select the best model based on query characteristics.
 
-The `heuristic_policy.py` module wires the existing `HeuristicRouter` (from the Intelligence pillar) into the `RouterPolicyRegistry`:
+### Routing Rules
+
+| Priority | Rule | Condition | Action |
+|----------|------|-----------|--------|
+| 1 | Code detection | Query contains code patterns (backticks, `def`, `class`, `import`, `function`, `=>`, etc.) | Prefer model with "code" or "coder" in name; fall back to largest model |
+| 2 | Math detection | Query contains math keywords (`solve`, `integral`, `equation`, `calculate`, `compute`, etc.) | Select the largest available model |
+| 3 | Short query | Query length < 50 characters, no code/math | Select the smallest available model (faster response) |
+| 4 | Long/complex query | Query length > 500 characters OR contains reasoning keywords (`explain`, `analyze`, `compare`, `step-by-step`, etc.) | Select the largest available model |
+| 5 | High urgency | `urgency > 0.8` | Override to smallest model (fastest response) |
+| 6 | Default fallback | None of the above match | Use `default_model`, then `fallback_model`, then first available |
+
+!!! note "Priority 5 overrides all others"
+    The urgency check (rule 5) is evaluated **first** in the code — if urgency exceeds 0.8, the router immediately returns the smallest model regardless of query content.
+
+### Usage
+
+```python
+from openjarvis.learning.router import HeuristicRouter, build_routing_context
+
+router = HeuristicRouter(
+    available_models=["qwen3:8b", "llama3.2:3b", "deepseek-coder-v2:16b"],
+    default_model="qwen3:8b",
+    fallback_model="llama3.2:3b",
+)
+
+ctx = build_routing_context("Write a Python function to sort a list")
+model = router.select_model(ctx)  # Returns "deepseek-coder-v2:16b" (has "coder")
+```
+
+### build_routing_context()
+
+The `build_routing_context()` function (in `learning/router.py`) analyzes a raw query string and produces a `RoutingContext` dataclass:
+
+```python
+from openjarvis.learning.router import build_routing_context
+
+ctx = build_routing_context("Solve the integral of x^2 dx")
+# ctx.has_math = True, ctx.has_code = False, ctx.query_length = 32
+
+ctx = build_routing_context("```python\ndef hello():\n    pass\n```")
+# ctx.has_code = True, ctx.has_math = False
+```
+
+**Code detection** uses regex patterns matching:
+
+- Backtick code blocks (` ``` ` or `` `inline` ``)
+- Language keywords (`def`, `class`, `import`, `function`, `const`, `var`, `let`)
+- Syntax patterns (`if (`, `->`, `=>`, `{ }`, `for x in`, `#include`, `System.out`)
+
+**Math detection** uses regex patterns matching:
+
+- Mathematical terms (`solve`, `integral`, `equation`, `proof`, `derivative`, `matrix`)
+- Computational keywords (`calculate`, `compute`, `sigma`, `sum`, `limit`, `probability`)
+
+### Registration
+
+The `heuristic_policy.py` module wires `HeuristicRouter` into the `RouterPolicyRegistry`:
 
 ```python
 # learning/heuristic_policy.py

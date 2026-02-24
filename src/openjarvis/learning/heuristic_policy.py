@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from openjarvis.core.registry import RouterPolicyRegistry
-from openjarvis.intelligence.router import HeuristicRouter
+from openjarvis.learning.router import HeuristicRouter
 
 
 def ensure_registered() -> None:

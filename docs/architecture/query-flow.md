@@ -11,7 +11,7 @@ sequenceDiagram
     actor User
     participant CLI as CLI / SDK
     participant CFG as Config & Discovery
-    participant RTR as Router Policy
+    participant LRN as Learning (Router)
     participant AGT as Agent
     participant MEM as Memory Backend
     participant CTX as Context Injection
@@ -30,8 +30,8 @@ sequenceDiagram
     CFG-->>CLI: available models per engine
 
     alt Model not specified
-        CLI->>RTR: select_model(RoutingContext)
-        RTR-->>CLI: model_key (e.g., "qwen3:8b")
+        CLI->>LRN: select_model(RoutingContext)
+        LRN-->>CLI: model_key (e.g., "qwen3:8b")
     end
 
     alt Agent mode (--agent flag)
@@ -150,9 +150,10 @@ If no model was explicitly specified, the router policy selects one:
 
 ```python
 from openjarvis.learning import ensure_registered
+from openjarvis.learning.router import build_routing_context
 ensure_registered()  # Ensure learning policies are registered
 
-policy_key = router_policy or config.learning.default_policy
+policy_key = router_policy or config.learning.routing.policy
 router_cls = RouterPolicyRegistry.get(policy_key)
 router = router_cls(
     available_models=all_models.get(engine_name, []),
@@ -164,7 +165,7 @@ ctx = build_routing_context(query_text)
 model_name = router.select_model(ctx)
 ```
 
-The `build_routing_context()` function analyzes the query for code patterns, math keywords, length, and urgency. The router then applies its rules (heuristic or learned) to select the optimal model.
+The `build_routing_context()` function (in `learning/router.py`) analyzes the query for code patterns, math keywords, length, and urgency. The router then applies its rules (heuristic or learned) to select the optimal model.
 
 ### Step 5: Memory Context Injection
 

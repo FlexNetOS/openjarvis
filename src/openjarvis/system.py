@@ -38,16 +38,21 @@ class JarvisSystem:
         query: str,
         *,
         context: bool = True,
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         agent: Optional[str] = None,
         tools: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Execute a query through the system and return a result dict."""
+        if temperature is None:
+            temperature = self.config.intelligence.temperature
+        if max_tokens is None:
+            max_tokens = self.config.intelligence.max_tokens
+
         messages = [Message(role=Role.USER, content=query)]
 
         # Context injection from memory
-        if context and self.memory_backend and self.config.memory.context_injection:
+        if context and self.memory_backend and self.config.agent.context_from_memory:
             try:
                 from openjarvis.tools.storage.context import (
                     ContextConfig,
@@ -299,7 +304,8 @@ class SystemBuilder:
         """Resolve the inference engine."""
         from openjarvis.engine._discovery import get_engine
 
-        key = self._engine_key or config.engine.default
+        pref = config.intelligence.preferred_engine
+        key = self._engine_key or pref or config.engine.default
         resolved = get_engine(config, key)
         if resolved is None:
             raise RuntimeError(
@@ -511,7 +517,7 @@ class SystemBuilder:
         # 3. Determine which tool names to include
         tool_names = self._tool_names
         if tool_names is None:
-            raw = config.tools.enabled or config.agent.default_tools
+            raw = config.tools.enabled or config.agent.tools
             if raw:
                 tool_names = [n.strip() for n in raw.split(",") if n.strip()]
             else:

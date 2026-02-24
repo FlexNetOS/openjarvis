@@ -124,7 +124,7 @@ def _run_agent(
     ctx = AgentContext()
 
     # Inject memory context into conversation if available
-    if config.memory.context_injection:
+    if config.agent.context_from_memory:
         try:
             from openjarvis.memory.context import ContextConfig, inject_context
 
@@ -151,9 +151,13 @@ def _run_agent(
 @click.option("-m", "--model", "model_name", default=None, help="Model to use.")
 @click.option("-e", "--engine", "engine_key", default=None, help="Engine backend.")
 @click.option(
-    "-t", "--temperature", default=0.7, type=float, help="Sampling temperature."
+    "-t", "--temperature", default=None, type=float,
+    help="Sampling temperature (default: from config).",
 )
-@click.option("--max-tokens", default=1024, type=int, help="Max tokens to generate.")
+@click.option(
+    "--max-tokens", default=None, type=int,
+    help="Max tokens to generate (default: from config).",
+)
 @click.option("--json", "output_json", is_flag=True, help="Output raw JSON result.")
 @click.option("--no-stream", is_flag=True, help="Disable streaming (sync mode).")
 @click.option(
@@ -187,6 +191,12 @@ def ask(
     # Load config
     config = load_config()
 
+    # Fall back to config values for generation params
+    if temperature is None:
+        temperature = config.intelligence.temperature
+    if max_tokens is None:
+        max_tokens = config.intelligence.max_tokens
+
     # Set up telemetry
     bus = EventBus(record_history=True)
     telem_store: TelemetryStore | None = None
@@ -200,7 +210,8 @@ def ask(
     # Discover engines
     register_builtin_models()
 
-    resolved = get_engine(config, engine_key)
+    effective_engine_key = engine_key or config.intelligence.preferred_engine or None
+    resolved = get_engine(config, effective_engine_key)
     if resolved is None:
         console.print(
             "[red bold]No inference engine available.[/red bold]\n\n"
@@ -273,7 +284,7 @@ def ask(
     messages = [Message(role=Role.USER, content=query_text)]
 
     # Memory-augmented context injection
-    if not no_context and config.memory.context_injection:
+    if not no_context and config.agent.context_from_memory:
         try:
             from openjarvis.memory.context import (
                 ContextConfig,

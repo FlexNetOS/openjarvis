@@ -89,19 +89,108 @@ def _build_judge_backend(judge_model: str):
     return JarvisDirectBackend(engine_key="cloud")
 
 
+def _print_summary(summary) -> None:
+    """Print a single run summary."""
+    click.echo(f"\n{'=' * 60}")
+    click.echo(f"Benchmark: {summary.benchmark}")
+    click.echo(f"Model:     {summary.model}")
+    click.echo(f"Backend:   {summary.backend}")
+    click.echo(f"Samples:   {summary.total_samples}")
+    click.echo(f"Scored:    {summary.scored_samples}")
+    click.echo(f"Correct:   {summary.correct}")
+    click.echo(f"Accuracy:  {summary.accuracy:.4f}")
+    click.echo(f"Errors:    {summary.errors}")
+    click.echo(f"Latency:   {summary.mean_latency_seconds:.2f}s (mean)")
+    click.echo(f"Cost:      ${summary.total_cost_usd:.4f}")
+    if summary.per_subject:
+        click.echo("\nPer-subject breakdown:")
+        for subj, stats in sorted(summary.per_subject.items()):
+            click.echo(f"  {subj}: {stats['accuracy']:.4f} "
+                       f"({int(stats['correct'])}/{int(stats['scored'])})")
+    click.echo(f"{'=' * 60}")
+
+
+def _run_single(config) -> object:
+    """Run a single eval from a RunConfig and return the summary."""
+    from evals.core.runner import EvalRunner
+
+    eval_backend = _build_backend(
+        config.backend,
+        config.engine_key,
+        config.agent_name or "orchestrator",
+        config.tools,
+    )
+    dataset = _build_dataset(config.benchmark)
+    judge_backend = _build_judge_backend(config.judge_model)
+    scorer = _build_scorer(config.benchmark, judge_backend, config.judge_model)
+
+    runner = EvalRunner(config, dataset, eval_backend, scorer)
+    try:
+        return runner.run()
+    finally:
+        eval_backend.close()
+        judge_backend.close()
+
+
+def _run_from_config(config_path: str, verbose: bool) -> None:
+    """Load a TOML config and run the full models x benchmarks matrix."""
+    from evals.core.config import expand_suite, load_eval_config
+
+    suite = load_eval_config(config_path)
+    run_configs = expand_suite(suite)
+
+    suite_name = suite.meta.name or Path(config_path).stem
+    click.echo(f"Suite: {suite_name}")
+    if suite.meta.description:
+        click.echo(f"  {suite.meta.description}")
+    click.echo(f"  {len(suite.models)} model(s) x {len(suite.benchmarks)} "
+               f"benchmark(s) = {len(run_configs)} run(s)\n")
+
+    # Ensure output directory exists
+    output_dir = Path(suite.run.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    summaries = []
+    for i, rc in enumerate(run_configs, 1):
+        click.echo(f"--- [{i}/{len(run_configs)}] {rc.benchmark} / {rc.model} ---")
+        try:
+            summary = _run_single(rc)
+            summaries.append(summary)
+            click.echo(f"  {summary.accuracy:.4f} "
+                       f"({summary.correct}/{summary.scored_samples})")
+        except Exception as exc:
+            click.echo(f"  FAILED: {exc}", err=True)
+
+    # Print overall summary table
+    if summaries:
+        click.echo(f"\n{'=' * 60}")
+        click.echo(f"Suite Results: {suite_name}")
+        click.echo(f"{'=' * 60}")
+        click.echo(f"  {'Benchmark':12s} {'Model':20s} {'Accuracy':>10s} {'Scored':>8s}")
+        click.echo(f"  {'-' * 12} {'-' * 20} {'-' * 10} {'-' * 8}")
+        for s in summaries:
+            model_display = s.model[:20]
+            click.echo(f"  {s.benchmark:12s} {model_display:20s} "
+                       f"{s.accuracy:10.4f} "
+                       f"{s.correct}/{s.scored_samples:>5}")
+        click.echo(f"{'=' * 60}")
+
+
 @click.group()
 def main():
     """OpenJarvis Evaluation Framework."""
 
 
 @main.command()
-@click.option("-b", "--benchmark", required=True,
+@click.option("-c", "--config", "config_path", default=None,
+              type=click.Path(), help="TOML config file for suite runs")
+@click.option("-b", "--benchmark", default=None,
               type=click.Choice(list(BENCHMARKS.keys())),
               help="Benchmark to run")
 @click.option("--backend", default="jarvis-direct",
               type=click.Choice(list(BACKENDS.keys())),
               help="Inference backend")
-@click.option("-m", "--model", required=True, help="Model identifier")
+@click.option("-m", "--model", default=None, help="Model identifier")
 @click.option("-e", "--engine", "engine_key", default=None,
               help="Engine key (ollama, vllm, cloud, ...)")
 @click.option("--agent", "agent_name", default="orchestrator",
@@ -123,13 +212,30 @@ def main():
 @click.option("--max-tokens", type=int, default=2048,
               help="Max output tokens")
 @click.option("-v", "--verbose", is_flag=True, help="Verbose logging")
-def run(benchmark, backend, model, engine_key, agent_name, tools,
-        max_samples, max_workers, judge_model, output_path, seed,
+@click.pass_context
+def run(ctx, config_path, benchmark, backend, model, engine_key, agent_name,
+        tools, max_samples, max_workers, judge_model, output_path, seed,
         dataset_split, temperature, max_tokens, verbose):
-    """Run a single benchmark evaluation."""
+    """Run a single benchmark evaluation, or a full suite from a TOML config."""
     _setup_logging(verbose)
 
-    from evals.core.runner import EvalRunner
+    # Config-driven mode
+    if config_path is not None:
+        _run_from_config(config_path, verbose)
+        return
+
+    # CLI-driven mode: validate required args
+    if benchmark is None:
+        raise click.UsageError(
+            "Missing option '-b' / '--benchmark' "
+            "(required when --config is not provided)"
+        )
+    if model is None:
+        raise click.UsageError(
+            "Missing option '-m' / '--model' "
+            "(required when --config is not provided)"
+        )
+
     from evals.core.types import RunConfig
 
     tool_list = [t.strip() for t in tools.split(",") if t.strip()] if tools else []
@@ -151,37 +257,8 @@ def run(benchmark, backend, model, engine_key, agent_name, tools,
         dataset_split=dataset_split,
     )
 
-    eval_backend = _build_backend(backend, engine_key, agent_name, tool_list)
-    dataset = _build_dataset(benchmark)
-    judge_backend = _build_judge_backend(judge_model)
-    scorer = _build_scorer(benchmark, judge_backend, judge_model)
-
-    runner = EvalRunner(config, dataset, eval_backend, scorer)
-
-    try:
-        summary = runner.run()
-    finally:
-        eval_backend.close()
-        judge_backend.close()
-
-    # Print summary
-    click.echo(f"\n{'=' * 60}")
-    click.echo(f"Benchmark: {summary.benchmark}")
-    click.echo(f"Model:     {summary.model}")
-    click.echo(f"Backend:   {summary.backend}")
-    click.echo(f"Samples:   {summary.total_samples}")
-    click.echo(f"Scored:    {summary.scored_samples}")
-    click.echo(f"Correct:   {summary.correct}")
-    click.echo(f"Accuracy:  {summary.accuracy:.4f}")
-    click.echo(f"Errors:    {summary.errors}")
-    click.echo(f"Latency:   {summary.mean_latency_seconds:.2f}s (mean)")
-    click.echo(f"Cost:      ${summary.total_cost_usd:.4f}")
-    if summary.per_subject:
-        click.echo("\nPer-subject breakdown:")
-        for subj, stats in sorted(summary.per_subject.items()):
-            click.echo(f"  {subj}: {stats['accuracy']:.4f} "
-                       f"({int(stats['correct'])}/{int(stats['scored'])})")
-    click.echo(f"{'=' * 60}")
+    summary = _run_single(config)
+    _print_summary(summary)
 
 
 @main.command("run-all")

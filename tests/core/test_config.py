@@ -5,11 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from openjarvis.core.config import (
+    AgentConfig,
     ChannelConfig,
     EngineConfig,
     GpuInfo,
     HardwareInfo,
+    IntelligenceConfig,
     JarvisConfig,
+    LearningConfig,
     SecurityConfig,
     generate_default_toml,
     load_config,
@@ -26,6 +29,13 @@ class TestDefaults:
 
     def test_engine_config_defaults(self) -> None:
         ec = EngineConfig()
+        # Nested configs
+        assert ec.ollama.host == "http://localhost:11434"
+        assert ec.vllm.host == "http://localhost:8000"
+        assert ec.sglang.host == "http://localhost:30000"
+        assert ec.llamacpp.host == "http://localhost:8080"
+        assert ec.llamacpp.binary_path == ""
+        # Backward-compat properties still work
         assert ec.ollama_host == "http://localhost:11434"
         assert ec.vllm_host == "http://localhost:8000"
 
@@ -145,3 +155,208 @@ class TestChannelConfig:
     def test_channel_config_in_default_toml(self) -> None:
         output = generate_default_toml(HardwareInfo())
         assert "[channel]" in output
+
+
+# ---------------------------------------------------------------------------
+# New config structure tests
+# ---------------------------------------------------------------------------
+
+
+class TestIntelligenceGenerationDefaults:
+    def test_generation_fields_exist(self) -> None:
+        ic = IntelligenceConfig()
+        assert ic.temperature == 0.7
+        assert ic.max_tokens == 1024
+        assert ic.top_p == 0.9
+        assert ic.top_k == 40
+        assert ic.repetition_penalty == 1.0
+        assert ic.stop_sequences == ""
+
+    def test_custom_generation_values(self) -> None:
+        ic = IntelligenceConfig(temperature=0.3, max_tokens=512, top_p=0.5)
+        assert ic.temperature == 0.3
+        assert ic.max_tokens == 512
+        assert ic.top_p == 0.5
+
+
+class TestAgentConfigNew:
+    def test_new_fields(self) -> None:
+        ac = AgentConfig()
+        assert ac.objective == ""
+        assert ac.system_prompt == ""
+        assert ac.system_prompt_path == ""
+        assert ac.context_from_memory is True
+        assert ac.tools == ""
+        assert ac.max_turns == 10
+
+    def test_default_tools_backward_compat(self) -> None:
+        ac = AgentConfig()
+        ac.default_tools = "calculator,think"
+        assert ac.tools == "calculator,think"
+        assert ac.default_tools == "calculator,think"
+
+    def test_no_temperature_or_max_tokens(self) -> None:
+        ac = AgentConfig()
+        assert not hasattr(ac.__class__, "temperature") or isinstance(
+            getattr(ac.__class__, "temperature", None), property
+        ) is False
+
+
+class TestNestedEngineConfig:
+    def test_nested_access(self) -> None:
+        ec = EngineConfig()
+        assert ec.ollama.host == "http://localhost:11434"
+        assert ec.vllm.host == "http://localhost:8000"
+        assert ec.sglang.host == "http://localhost:30000"
+        assert ec.llamacpp.host == "http://localhost:8080"
+        assert ec.llamacpp.binary_path == ""
+
+    def test_backward_compat_setter(self) -> None:
+        ec = EngineConfig()
+        ec.ollama_host = "http://custom:1234"
+        assert ec.ollama.host == "http://custom:1234"
+        assert ec.ollama_host == "http://custom:1234"
+
+    def test_llamacpp_path_compat(self) -> None:
+        ec = EngineConfig()
+        ec.llamacpp_path = "/usr/bin/llama-server"
+        assert ec.llamacpp.binary_path == "/usr/bin/llama-server"
+
+    def test_loads_nested_toml(self, tmp_path: Path) -> None:
+        toml_file = tmp_path / "config.toml"
+        toml_file.write_text(
+            '[engine]\ndefault = "vllm"\n\n'
+            '[engine.ollama]\nhost = "http://custom:11434"\n\n'
+            '[engine.llamacpp]\nbinary_path = "/opt/llama"\n'
+        )
+        cfg = load_config(toml_file)
+        assert cfg.engine.default == "vllm"
+        assert cfg.engine.ollama.host == "http://custom:11434"
+        assert cfg.engine.llamacpp.binary_path == "/opt/llama"
+
+    def test_loads_old_flat_toml(self, tmp_path: Path) -> None:
+        """Old flat engine keys still work via backward-compat properties."""
+        toml_file = tmp_path / "config.toml"
+        toml_file.write_text(
+            '[engine]\ndefault = "ollama"\n'
+            'ollama_host = "http://old:11434"\n'
+            'vllm_host = "http://old:8000"\n'
+        )
+        cfg = load_config(toml_file)
+        assert cfg.engine.ollama.host == "http://old:11434"
+        assert cfg.engine.vllm.host == "http://old:8000"
+
+
+class TestNestedLearningConfig:
+    def test_defaults(self) -> None:
+        lc = LearningConfig()
+        assert lc.enabled is False
+        assert lc.update_interval == 100
+        assert lc.auto_update is False
+        assert lc.routing.policy == "heuristic"
+        assert lc.routing.min_samples == 5
+        assert lc.intelligence.policy == "none"
+        assert lc.agent.policy == "none"
+        assert lc.agent.max_icl_examples == 20
+        assert lc.metrics.accuracy_weight == 0.6
+        assert lc.metrics.latency_weight == 0.2
+
+    def test_backward_compat_default_policy(self) -> None:
+        lc = LearningConfig()
+        assert lc.default_policy == "heuristic"
+        lc.default_policy = "grpo"
+        assert lc.routing.policy == "grpo"
+
+    def test_backward_compat_intelligence_policy(self) -> None:
+        lc = LearningConfig()
+        lc.intelligence_policy = "sft"
+        assert lc.intelligence.policy == "sft"
+
+    def test_backward_compat_agent_policy(self) -> None:
+        lc = LearningConfig()
+        lc.agent_policy = "agent_advisor"
+        assert lc.agent.policy == "agent_advisor"
+
+    def test_backward_compat_reward_weights(self) -> None:
+        lc = LearningConfig()
+        lc.reward_weights = "latency=0.4,cost=0.3"
+        assert lc.metrics.latency_weight == 0.4
+        assert lc.metrics.cost_weight == 0.3
+
+    def test_loads_nested_toml(self, tmp_path: Path) -> None:
+        toml_file = tmp_path / "config.toml"
+        toml_file.write_text(
+            '[learning]\nenabled = true\nupdate_interval = 50\n\n'
+            '[learning.routing]\npolicy = "learned"\n\n'
+            '[learning.metrics]\nlatency_weight = 0.5\n'
+        )
+        cfg = load_config(toml_file)
+        assert cfg.learning.enabled is True
+        assert cfg.learning.update_interval == 50
+        assert cfg.learning.routing.policy == "learned"
+        assert cfg.learning.metrics.latency_weight == 0.5
+
+    def test_loads_old_flat_learning_toml(self, tmp_path: Path) -> None:
+        """Old flat learning keys still work via backward-compat properties."""
+        toml_file = tmp_path / "config.toml"
+        toml_file.write_text(
+            '[learning]\ndefault_policy = "grpo"\n'
+            'intelligence_policy = "sft"\n'
+            'reward_weights = "latency=0.5"\n'
+        )
+        cfg = load_config(toml_file)
+        assert cfg.learning.routing.policy == "grpo"
+        assert cfg.learning.intelligence.policy == "sft"
+        assert cfg.learning.metrics.latency_weight == 0.5
+
+
+class TestBackwardCompatMigration:
+    def test_agent_temperature_migrates_to_intelligence(self, tmp_path: Path) -> None:
+        toml_file = tmp_path / "config.toml"
+        toml_file.write_text(
+            '[agent]\ntemperature = 0.3\nmax_tokens = 512\n'
+        )
+        cfg = load_config(toml_file)
+        assert cfg.intelligence.temperature == 0.3
+        assert cfg.intelligence.max_tokens == 512
+
+    def test_memory_context_injection_migrates_to_agent(self, tmp_path: Path) -> None:
+        toml_file = tmp_path / "config.toml"
+        toml_file.write_text('[memory]\ncontext_injection = false\n')
+        cfg = load_config(toml_file)
+        assert cfg.agent.context_from_memory is False
+
+    def test_tools_storage_context_injection_migrates(self, tmp_path: Path) -> None:
+        toml_file = tmp_path / "config.toml"
+        toml_file.write_text(
+            '[tools.storage]\ncontext_injection = false\ndefault_backend = "faiss"\n'
+        )
+        cfg = load_config(toml_file)
+        assert cfg.agent.context_from_memory is False
+        assert cfg.tools.storage.default_backend == "faiss"
+
+
+class TestGenerateDefaultTomlNew:
+    def test_nested_engine_sections(self) -> None:
+        hw = HardwareInfo()
+        toml_str = generate_default_toml(hw)
+        assert "[engine.ollama]" in toml_str
+        assert "[engine.vllm]" in toml_str
+        assert "[engine.sglang]" in toml_str
+
+    def test_intelligence_generation_params(self) -> None:
+        hw = HardwareInfo()
+        toml_str = generate_default_toml(hw)
+        assert "temperature = 0.7" in toml_str
+        assert "max_tokens = 1024" in toml_str
+
+    def test_agent_new_fields(self) -> None:
+        hw = HardwareInfo()
+        toml_str = generate_default_toml(hw)
+        assert "context_from_memory = true" in toml_str
+
+    def test_learning_nested_sections(self) -> None:
+        hw = HardwareInfo()
+        toml_str = generate_default_toml(hw)
+        assert "[learning.routing]" in toml_str
+        assert 'policy = "heuristic"' in toml_str

@@ -1,4 +1,4 @@
-"""Learning pillar ABCs and re-exports for backward compatibility."""
+"""Learning pillar ABCs — router policies, reward functions, and learning policies."""
 
 from __future__ import annotations
 
@@ -7,12 +7,27 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict
 
 from openjarvis.core.registry import LearningRegistry  # noqa: F401
 
-# Re-export from canonical locations for backward compatibility
+# Re-export from canonical location for backward compatibility
 from openjarvis.core.types import RoutingContext  # noqa: F401
-from openjarvis.intelligence._stubs import RouterPolicy  # noqa: F401
 
 if TYPE_CHECKING:
     pass
+
+
+class RouterPolicy(ABC):
+    """Model selection policy (used by the learning system)."""
+
+    @abstractmethod
+    def select_model(self, context: "RoutingContext") -> str:
+        """Select the best model key for the given routing context."""
+
+
+class QueryAnalyzer(ABC):
+    """Query analysis for routing contexts."""
+
+    @abstractmethod
+    def analyze(self, query: str, **kwargs: object) -> "RoutingContext":
+        """Analyze a query and return a RoutingContext."""
 
 
 class RewardFunction(ABC):
@@ -56,6 +71,7 @@ __all__ = [
     "IntelligenceLearningPolicy",
     "LearningPolicy",
     "LearningRegistry",
+    "QueryAnalyzer",
     "RewardFunction",
     "RouterPolicy",
     "RoutingContext",

@@ -405,9 +405,9 @@ class TestAskFlowWithRouterPolicy:
     """Full ask flow with router policy (mocked)."""
 
     def test_mocked_ask_with_registry_router(self):
-        from openjarvis.intelligence.router import HeuristicRouter
         from openjarvis.learning._stubs import RoutingContext
         from openjarvis.learning.heuristic_policy import ensure_registered
+        from openjarvis.learning.router import HeuristicRouter
 
         ensure_registered()
         router_cls = RouterPolicyRegistry.get("heuristic")
