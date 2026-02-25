@@ -16,6 +16,11 @@ from evals.core.dataset import DatasetProvider
 from evals.core.scorer import Scorer
 from evals.core.types import EvalRecord, EvalResult, MetricStats, RunConfig, RunSummary
 
+try:
+    from openjarvis.telemetry.efficiency import compute_efficiency
+except ImportError:  # pragma: no cover
+    compute_efficiency = None  # type: ignore[assignment]
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -102,6 +107,40 @@ class EvalRunner:
 
             is_correct, scoring_meta = self._scorer.score(record, content)
 
+            energy_j = full.get("energy_joules", 0.0)
+            power_w = full.get("power_watts", 0.0)
+            throughput = full.get("throughput_tok_per_sec", 0.0)
+            accuracy_score = 1.0 if is_correct else 0.0
+
+            # Compute IPW and IPJ
+            ipw = (accuracy_score / power_w) if power_w > 0 else 0.0
+            ipj = (accuracy_score / energy_j) if energy_j > 0 else 0.0
+
+            # Compute MFU/MBU if efficiency module available and we have
+            # model params from config metadata
+            mfu = 0.0
+            mbu = 0.0
+            if compute_efficiency is not None and throughput > 0:
+                model_meta = cfg.metadata or {}
+                param_b = model_meta.get("param_count_b", 0.0)
+                active_b = model_meta.get("active_params_b")
+                gpu_tflops = model_meta.get("gpu_peak_tflops", 0.0)
+                gpu_bw = model_meta.get("gpu_peak_bandwidth_gb_s", 0.0)
+                num_gpus = model_meta.get("num_gpus", 1)
+                if param_b > 0 and gpu_tflops > 0:
+                    eff = compute_efficiency(
+                        param_count_b=param_b,
+                        active_params_b=active_b,
+                        gpu_peak_tflops=gpu_tflops,
+                        gpu_peak_bandwidth_gb_s=gpu_bw,
+                        tokens_per_sec=throughput,
+                        num_gpus=num_gpus,
+                        energy_joules=energy_j,
+                        accuracy=accuracy_score,
+                    )
+                    mfu = eff.mfu_pct
+                    mbu = eff.mbu_pct
+
             return EvalResult(
                 record_id=record.record_id,
                 model_answer=content,
@@ -113,10 +152,14 @@ class EvalRunner:
                 cost_usd=cost,
                 scoring_metadata=scoring_meta,
                 ttft=full.get("ttft", 0.0),
-                energy_joules=full.get("energy_joules", 0.0),
-                power_watts=full.get("power_watts", 0.0),
+                energy_joules=energy_j,
+                power_watts=power_w,
                 gpu_utilization_pct=full.get("gpu_utilization_pct", 0.0),
-                throughput_tok_per_sec=full.get("throughput_tok_per_sec", 0.0),
+                throughput_tok_per_sec=throughput,
+                mfu_pct=mfu,
+                mbu_pct=mbu,
+                ipw=ipw,
+                ipj=ipj,
             )
         except Exception as exc:
             LOGGER.error("Error processing %s: %s", record.record_id, exc)

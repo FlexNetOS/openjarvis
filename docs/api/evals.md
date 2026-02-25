@@ -78,6 +78,15 @@ from evals.core.types import EvalResult
 | `cost_usd` | `float` | `0.0` | Estimated inference cost in USD |
 | `error` | `Optional[str]` | `None` | Exception message if inference or scoring failed |
 | `scoring_metadata` | `Dict[str, Any]` | `{}` | Scorer-specific details (extracted letter, judge output, match type, etc.) |
+| `ttft` | `float` | `0.0` | Time to first token (seconds) |
+| `energy_joules` | `float` | `0.0` | GPU energy consumed (joules) |
+| `power_watts` | `float` | `0.0` | Average GPU power draw (watts) |
+| `gpu_utilization_pct` | `float` | `0.0` | Average GPU utilization (%) |
+| `throughput_tok_per_sec` | `float` | `0.0` | Output token throughput (tokens/sec) |
+| `mfu_pct` | `float` | `0.0` | Model FLOPs Utilization (%) |
+| `mbu_pct` | `float` | `0.0` | Memory Bandwidth Utilization (%) |
+| `ipw` | `float` | `0.0` | Intelligence Per Watt: `accuracy / power_watts` |
+| `ipj` | `float` | `0.0` | Intelligence Per Joule: `accuracy / energy_joules` |
 
 !!! tip "Distinguishing errors from wrong answers"
     A non-`None` `error` field means inference itself failed. When `error` is `None` but
@@ -103,13 +112,16 @@ from evals.core.types import RunConfig
 | `max_workers` | `int` | `4` | Number of parallel threads for inference |
 | `temperature` | `float` | `0.0` | Sampling temperature |
 | `max_tokens` | `int` | `2048` | Maximum output tokens per sample |
-| `judge_model` | `str` | `"gpt-4o"` | Model identifier used by the LLM judge scorer |
+| `judge_model` | `str` | `"gpt-5-mini-2025-08-07"` | Model identifier used by the LLM judge scorer |
 | `engine_key` | `Optional[str]` | `None` | Override the OpenJarvis engine (`"ollama"`, `"vllm"`, `"cloud"`, etc.) |
 | `agent_name` | `Optional[str]` | `None` | Agent name for `jarvis-agent` backend; defaults to `"orchestrator"` |
 | `tools` | `List[str]` | `[]` | Tool names enabled for the agent (e.g., `["calculator", "file_read"]`) |
 | `output_path` | `Optional[str]` | `None` | JSONL output file path; auto-generated from benchmark and model name if `None` |
 | `seed` | `int` | `42` | Random seed for dataset shuffling |
 | `dataset_split` | `Optional[str]` | `None` | Override the dataset split (e.g., `"validation"`, `"test"`) |
+| `telemetry` | `bool` | `False` | Enable GPU telemetry capture |
+| `gpu_metrics` | `bool` | `False` | Enable GPU metric polling via `pynvml` |
+| `metadata` | `Dict[str, Any]` | `{}` | Model hardware metadata for efficiency calculations (populated by `expand_suite()`) |
 
 ```python
 config = RunConfig(
@@ -149,9 +161,44 @@ from evals.core.types import RunSummary
 | `per_subject` | `Dict[str, Dict[str, float]]` | `{}` | Per-subject breakdown: `{subject: {accuracy, total, scored, correct}}` |
 | `started_at` | `float` | `0.0` | Unix timestamp at run start |
 | `ended_at` | `float` | `0.0` | Unix timestamp at run end |
+| `accuracy_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for per-sample accuracy (binary 0/1) |
+| `latency_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for inference latency |
+| `ttft_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for time-to-first-token |
+| `energy_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for GPU energy (joules) |
+| `power_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for GPU power (watts) |
+| `gpu_utilization_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for GPU utilization (%) |
+| `throughput_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for token throughput |
+| `mfu_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for Model FLOPs Utilization (%) |
+| `mbu_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for Memory Bandwidth Utilization (%) |
+| `ipw_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for Intelligence Per Watt |
+| `ipj_stats` | `Optional[MetricStats]` | `None` | Descriptive statistics for Intelligence Per Joule |
+| `total_energy_joules` | `float` | `0.0` | Total GPU energy consumed across all samples |
 
 The runner also writes a `.summary.json` file alongside the JSONL output, containing
 the serialized `RunSummary`.
+
+---
+
+### MetricStats
+
+Descriptive statistics for a single metric across samples.
+
+```python
+from evals.core.types import MetricStats
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `mean` | `float` | `0.0` | Arithmetic mean |
+| `median` | `float` | `0.0` | Median value |
+| `min` | `float` | `0.0` | Minimum value |
+| `max` | `float` | `0.0` | Maximum value |
+| `std` | `float` | `0.0` | Standard deviation (0.0 for single-element lists) |
+
+`MetricStats` is computed by `_metric_stats()` in the runner and serialized to
+JSON by `_metric_stats_to_dict()`. Fields in `RunSummary` like `accuracy_stats`,
+`energy_stats`, `mfu_stats`, etc. are `Optional[MetricStats]` — they are `None`
+when no positive values were observed for that metric.
 
 ---
 
@@ -213,10 +260,15 @@ class ExecutionConfig:
     max_workers: int = 4
     output_dir: str = "results/"
     seed: int = 42
+    telemetry: bool = False
+    gpu_metrics: bool = False
 ```
 
 Maps to `[run]`. `output_dir` is the base directory for all JSONL output files;
 individual filenames are auto-generated as `{benchmark}_{model-slug}.jsonl`.
+When `telemetry` is enabled, the runner captures GPU energy, power, utilization,
+and throughput per sample via `InstrumentedEngine`. When `gpu_metrics` is enabled,
+`GpuMonitor` polls GPU sensors via `pynvml` during inference.
 
 ---
 
@@ -230,11 +282,19 @@ class ModelConfig:
     provider: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    param_count_b: float = 0.0
+    active_params_b: Optional[float] = None
+    gpu_peak_tflops: float = 0.0
+    gpu_peak_bandwidth_gb_s: float = 0.0
+    num_gpus: int = 1
 ```
 
 Maps to each `[[models]]` entry. `name` is required. `temperature` and `max_tokens`
 override `[defaults]` for every benchmark this model runs against, unless a
-benchmark-level override also exists.
+benchmark-level override also exists. The hardware parameters (`param_count_b`,
+`active_params_b`, `gpu_peak_tflops`, `gpu_peak_bandwidth_gb_s`, `num_gpus`) are
+used to compute MFU (Model FLOPs Utilization) and MBU (Memory Bandwidth Utilization)
+per sample. These are flowed into `RunConfig.metadata` by `expand_suite()`.
 
 ---
 

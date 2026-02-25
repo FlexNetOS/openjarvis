@@ -67,6 +67,11 @@ class TestDataclassDefaults:
         assert m.provider is None
         assert m.temperature is None
         assert m.max_tokens is None
+        assert m.param_count_b == 0.0
+        assert m.active_params_b is None
+        assert m.gpu_peak_tflops == 0.0
+        assert m.gpu_peak_bandwidth_gb_s == 0.0
+        assert m.num_gpus == 1
 
     def test_benchmark_config_defaults(self):
         b = BenchmarkConfig(name="supergpqa")
@@ -273,6 +278,60 @@ class TestLoadEvalConfig:
         with pytest.raises(EvalConfigError, match="at least one \\[\\[benchmarks\\]\\]"):
             load_eval_config(p)
 
+    def test_model_hardware_params(self, tmp_path):
+        p = _write_toml(tmp_path, """\
+            [[models]]
+            name = "GLM-4.7-Flash"
+            engine = "vllm"
+            param_count_b = 30.0
+            active_params_b = 3.0
+            gpu_peak_tflops = 312.0
+            gpu_peak_bandwidth_gb_s = 2039.0
+            num_gpus = 4
+
+            [[benchmarks]]
+            name = "supergpqa"
+        """)
+        suite = load_eval_config(p)
+        m = suite.models[0]
+        assert m.param_count_b == 30.0
+        assert m.active_params_b == 3.0
+        assert m.gpu_peak_tflops == 312.0
+        assert m.gpu_peak_bandwidth_gb_s == 2039.0
+        assert m.num_gpus == 4
+
+    def test_model_hardware_params_defaults(self, tmp_path):
+        p = _write_toml(tmp_path, """\
+            [[models]]
+            name = "qwen3:8b"
+
+            [[benchmarks]]
+            name = "supergpqa"
+        """)
+        suite = load_eval_config(p)
+        m = suite.models[0]
+        assert m.param_count_b == 0.0
+        assert m.active_params_b is None
+        assert m.gpu_peak_tflops == 0.0
+        assert m.gpu_peak_bandwidth_gb_s == 0.0
+        assert m.num_gpus == 1
+
+    def test_telemetry_config(self, tmp_path):
+        p = _write_toml(tmp_path, """\
+            [run]
+            telemetry = true
+            gpu_metrics = true
+
+            [[models]]
+            name = "qwen3:8b"
+
+            [[benchmarks]]
+            name = "supergpqa"
+        """)
+        suite = load_eval_config(p)
+        assert suite.run.telemetry is True
+        assert suite.run.gpu_metrics is True
+
 
 # ---------------------------------------------------------------------------
 # Example config files load correctly
@@ -280,7 +339,7 @@ class TestLoadEvalConfig:
 
 
 class TestExampleConfigs:
-    @pytest.fixture(params=["minimal.toml", "single-run.toml", "full-suite.toml", "glm-4.7-flash-openhands.toml"])
+    @pytest.fixture(params=["minimal.toml", "single-run.toml", "full-suite.toml", "glm-4.7-flash-openhands.toml", "glm-4.7-flash-openhands-remaining.toml"])
     def example_config(self, request):
         configs_dir = Path(__file__).resolve().parent.parent / "configs"
         return configs_dir / request.param
@@ -476,6 +535,58 @@ class TestExpandSuite:
         )
         configs = expand_suite(suite)
         assert all(isinstance(c, RunConfig) for c in configs)
+
+    def test_metadata_from_model_hardware_params(self):
+        suite = EvalSuiteConfig(
+            models=[ModelConfig(
+                name="GLM-4.7-Flash", engine="vllm",
+                param_count_b=30.0, active_params_b=3.0,
+                gpu_peak_tflops=312.0, gpu_peak_bandwidth_gb_s=2039.0,
+                num_gpus=4,
+            )],
+            benchmarks=[BenchmarkConfig(name="supergpqa")],
+        )
+        configs = expand_suite(suite)
+        meta = configs[0].metadata
+        assert meta["param_count_b"] == 30.0
+        assert meta["active_params_b"] == 3.0
+        assert meta["gpu_peak_tflops"] == 312.0
+        assert meta["gpu_peak_bandwidth_gb_s"] == 2039.0
+        assert meta["num_gpus"] == 4
+
+    def test_metadata_empty_when_no_hardware_params(self):
+        suite = EvalSuiteConfig(
+            models=[ModelConfig(name="m1")],
+            benchmarks=[BenchmarkConfig(name="supergpqa")],
+        )
+        configs = expand_suite(suite)
+        assert configs[0].metadata == {}
+
+    def test_metadata_partial_hardware_params(self):
+        suite = EvalSuiteConfig(
+            models=[ModelConfig(
+                name="m1",
+                param_count_b=7.0,
+                gpu_peak_tflops=100.0,
+            )],
+            benchmarks=[BenchmarkConfig(name="supergpqa")],
+        )
+        configs = expand_suite(suite)
+        meta = configs[0].metadata
+        assert meta["param_count_b"] == 7.0
+        assert meta["gpu_peak_tflops"] == 100.0
+        assert "active_params_b" not in meta  # None → omitted
+        assert "num_gpus" not in meta  # 1 → omitted (default)
+
+    def test_telemetry_flags_propagated(self):
+        suite = EvalSuiteConfig(
+            run=ExecutionConfig(telemetry=True, gpu_metrics=True),
+            models=[ModelConfig(name="m1")],
+            benchmarks=[BenchmarkConfig(name="supergpqa")],
+        )
+        configs = expand_suite(suite)
+        assert configs[0].telemetry is True
+        assert configs[0].gpu_metrics is True
 
 
 # ---------------------------------------------------------------------------

@@ -26,6 +26,11 @@ gpu_metrics = true
 [[models]]
 name = "zai-org/GLM-4.7-Flash"
 engine = "vllm"
+param_count_b = 30.0              # 30B total MoE params
+active_params_b = 3.0             # ~3B active params per token
+gpu_peak_tflops = 312.0           # A100 SXM FP16 peak TFLOPS
+gpu_peak_bandwidth_gb_s = 2039.0  # A100 SXM memory bandwidth
+num_gpus = 4                      # TP=4
 
 # --- Benchmarks ---
 

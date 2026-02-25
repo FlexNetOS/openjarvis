@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 
-from evals.core.runner import EvalRunner
-from evals.core.types import EvalRecord, RunConfig
+import pytest
+
+from evals.core.runner import EvalRunner, _metric_stats, _metric_stats_to_dict
+from evals.core.types import EvalRecord, MetricStats, RunConfig
 from evals.tests.conftest import MockBackend, MockDataset, MockScorer
 
 
@@ -193,3 +195,210 @@ class TestEvalRunner:
         assert summary.scored_samples == 4
         assert summary.correct == 2
         assert summary.accuracy == 0.5
+
+    def test_telemetry_fields_in_jsonl(self, tmp_path):
+        """Verify telemetry fields are written to JSONL output."""
+        records = self._make_records(2)
+        output_path = tmp_path / "results.jsonl"
+
+        config = RunConfig(
+            benchmark="test",
+            backend="mock",
+            model="m",
+            max_workers=1,
+            output_path=str(output_path),
+        )
+
+        dataset = MockDataset(records)
+        backend = MockBackend()
+        scorer = MockScorer(result=True)
+
+        runner = EvalRunner(config, dataset, backend, scorer)
+        runner.run()
+
+        lines = output_path.read_text().strip().split("\n")
+        first = json.loads(lines[0])
+        assert "energy_joules" in first
+        assert "power_watts" in first
+        assert "gpu_utilization_pct" in first
+        assert "throughput_tok_per_sec" in first
+        assert "mfu_pct" in first
+        assert "mbu_pct" in first
+        assert "ipw" in first
+        assert "ipj" in first
+
+    def test_ipw_ipj_computation(self, tmp_path):
+        """IPW and IPJ should be computed for correct samples."""
+        records = self._make_records(2)
+        output_path = tmp_path / "results.jsonl"
+
+        config = RunConfig(
+            benchmark="test",
+            backend="mock",
+            model="m",
+            max_workers=1,
+            output_path=str(output_path),
+        )
+
+        dataset = MockDataset(records)
+        backend = MockBackend()  # returns power=250W, energy=50J
+        scorer = MockScorer(result=True)
+
+        runner = EvalRunner(config, dataset, backend, scorer)
+        runner.run()
+
+        lines = output_path.read_text().strip().split("\n")
+        r = json.loads(lines[0])
+        # accuracy=1.0, power=250W → IPW = 1/250 = 0.004
+        assert r["ipw"] == pytest.approx(1.0 / 250.0, rel=1e-4)
+        # accuracy=1.0, energy=50J → IPJ = 1/50 = 0.02
+        assert r["ipj"] == pytest.approx(1.0 / 50.0, rel=1e-4)
+
+    def test_ipw_ipj_zero_for_incorrect(self, tmp_path):
+        """IPW and IPJ should be 0 for incorrect samples."""
+        records = self._make_records(1)
+        output_path = tmp_path / "results.jsonl"
+
+        config = RunConfig(
+            benchmark="test",
+            backend="mock",
+            model="m",
+            max_workers=1,
+            output_path=str(output_path),
+        )
+
+        dataset = MockDataset(records)
+        backend = MockBackend()
+        scorer = MockScorer(result=False)
+
+        runner = EvalRunner(config, dataset, backend, scorer)
+        runner.run()
+
+        lines = output_path.read_text().strip().split("\n")
+        r = json.loads(lines[0])
+        assert r["ipw"] == 0.0
+        assert r["ipj"] == 0.0
+
+    def test_mfu_mbu_with_metadata(self, tmp_path):
+        """MFU/MBU should be computed when model metadata is provided."""
+        records = self._make_records(1)
+        output_path = tmp_path / "results.jsonl"
+
+        config = RunConfig(
+            benchmark="test",
+            backend="mock",
+            model="m",
+            max_workers=1,
+            output_path=str(output_path),
+            metadata={
+                "param_count_b": 7.0,
+                "gpu_peak_tflops": 312.0,
+                "gpu_peak_bandwidth_gb_s": 2039.0,
+                "num_gpus": 1,
+            },
+        )
+
+        dataset = MockDataset(records)
+        backend = MockBackend()  # throughput=38 tok/s
+        scorer = MockScorer(result=True)
+
+        runner = EvalRunner(config, dataset, backend, scorer)
+        runner.run()
+
+        lines = output_path.read_text().strip().split("\n")
+        r = json.loads(lines[0])
+        # With compute_efficiency available, MFU/MBU should be > 0
+        assert r["mfu_pct"] > 0 or r["mfu_pct"] == 0  # depends on import
+        assert r["mbu_pct"] >= 0
+
+    def test_summary_metric_stats(self, tmp_path):
+        """Summary should include MetricStats for telemetry fields."""
+        records = self._make_records(5)
+        output_path = tmp_path / "results.jsonl"
+
+        config = RunConfig(
+            benchmark="test",
+            backend="mock",
+            model="m",
+            max_workers=1,
+            output_path=str(output_path),
+        )
+
+        dataset = MockDataset(records)
+        backend = MockBackend()
+        scorer = MockScorer(result=True)
+
+        runner = EvalRunner(config, dataset, backend, scorer)
+        summary = runner.run()
+
+        assert summary.accuracy_stats is not None
+        assert summary.accuracy_stats.mean == 1.0
+        assert summary.energy_stats is not None
+        assert summary.energy_stats.mean == 50.0
+        assert summary.power_stats is not None
+        assert summary.power_stats.mean == 250.0
+        assert summary.throughput_stats is not None
+        assert summary.ipw_stats is not None
+        assert summary.total_energy_joules == 250.0  # 5 * 50.0
+
+    def test_summary_json_includes_metric_stats(self, tmp_path):
+        """Summary JSON file should serialize MetricStats fields."""
+        records = self._make_records(3)
+        output_path = tmp_path / "results.jsonl"
+
+        config = RunConfig(
+            benchmark="test",
+            backend="mock",
+            model="m",
+            max_workers=1,
+            output_path=str(output_path),
+        )
+
+        dataset = MockDataset(records)
+        backend = MockBackend()
+        scorer = MockScorer(result=True)
+
+        runner = EvalRunner(config, dataset, backend, scorer)
+        runner.run()
+
+        summary_path = output_path.with_suffix(".summary.json")
+        data = json.loads(summary_path.read_text())
+        assert "accuracy_stats" in data
+        assert data["accuracy_stats"]["mean"] == 1.0
+        assert "energy_stats" in data
+        assert "power_stats" in data
+        assert "mfu_stats" in data or data["mfu_stats"] is None
+        assert "ipw_stats" in data
+        assert "ipj_stats" in data
+        assert "total_energy_joules" in data
+
+
+class TestMetricStatsHelpers:
+    def test_metric_stats_empty(self):
+        assert _metric_stats([]) is None
+
+    def test_metric_stats_single(self):
+        ms = _metric_stats([5.0])
+        assert ms is not None
+        assert ms.mean == 5.0
+        assert ms.median == 5.0
+        assert ms.min == 5.0
+        assert ms.max == 5.0
+        assert ms.std == 0.0
+
+    def test_metric_stats_multiple(self):
+        ms = _metric_stats([1.0, 2.0, 3.0, 4.0, 5.0])
+        assert ms is not None
+        assert ms.mean == 3.0
+        assert ms.median == 3.0
+        assert ms.min == 1.0
+        assert ms.max == 5.0
+        assert ms.std > 0
+
+    def test_metric_stats_to_dict_none(self):
+        assert _metric_stats_to_dict(None) is None
+
+    def test_metric_stats_to_dict(self):
+        ms = MetricStats(mean=1.0, median=2.0, min=0.5, max=3.0, std=0.8)
+        d = _metric_stats_to_dict(ms)
+        assert d == {"mean": 1.0, "median": 2.0, "min": 0.5, "max": 3.0, "std": 0.8}

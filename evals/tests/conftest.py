@@ -66,6 +66,11 @@ class MockBackend(InferenceBackend):
             "model": model,
             "latency_seconds": 0.1,
             "cost_usd": 0.001,
+            "energy_joules": 50.0,
+            "power_watts": 250.0,
+            "gpu_utilization_pct": 45.0,
+            "throughput_tok_per_sec": 38.0,
+            "ttft": 0.0,
         }
 
 

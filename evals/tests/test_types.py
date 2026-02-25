@@ -11,6 +11,7 @@ from evals.core.types import (
     ExecutionConfig,
     JudgeConfig,
     MetaConfig,
+    MetricStats,
     ModelConfig,
     RunConfig,
     RunSummary,
@@ -51,6 +52,15 @@ class TestEvalResult:
         assert r.cost_usd == 0.0
         assert r.error is None
         assert r.scoring_metadata == {}
+        assert r.ttft == 0.0
+        assert r.energy_joules == 0.0
+        assert r.power_watts == 0.0
+        assert r.gpu_utilization_pct == 0.0
+        assert r.throughput_tok_per_sec == 0.0
+        assert r.mfu_pct == 0.0
+        assert r.mbu_pct == 0.0
+        assert r.ipw == 0.0
+        assert r.ipj == 0.0
 
     def test_full(self):
         r = EvalResult(
@@ -63,6 +73,23 @@ class TestEvalResult:
         assert r.score == 1.0
         assert r.cost_usd == 0.01
 
+    def test_telemetry_fields(self):
+        r = EvalResult(
+            record_id="r1", model_answer="42",
+            energy_joules=100.5, power_watts=250.0,
+            gpu_utilization_pct=45.0, throughput_tok_per_sec=38.5,
+            mfu_pct=0.018, mbu_pct=27.5,
+            ipw=0.004, ipj=0.0001,
+        )
+        assert r.energy_joules == 100.5
+        assert r.power_watts == 250.0
+        assert r.gpu_utilization_pct == 45.0
+        assert r.throughput_tok_per_sec == 38.5
+        assert r.mfu_pct == 0.018
+        assert r.mbu_pct == 27.5
+        assert r.ipw == 0.004
+        assert r.ipj == 0.0001
+
 
 class TestRunConfig:
     def test_defaults(self):
@@ -74,6 +101,9 @@ class TestRunConfig:
         assert c.judge_model == "gpt-5-mini-2025-08-07"
         assert c.seed == 42
         assert c.tools == []
+        assert c.telemetry is False
+        assert c.gpu_metrics is False
+        assert c.metadata == {}
 
     def test_with_agent(self):
         c = RunConfig(
@@ -83,6 +113,41 @@ class TestRunConfig:
         )
         assert c.agent_name == "orchestrator"
         assert c.tools == ["calculator", "think"]
+
+    def test_with_metadata(self):
+        meta = {"param_count_b": 30.0, "active_params_b": 3.0, "num_gpus": 4}
+        c = RunConfig(
+            benchmark="supergpqa", backend="jarvis-direct", model="m",
+            metadata=meta,
+        )
+        assert c.metadata["param_count_b"] == 30.0
+        assert c.metadata["active_params_b"] == 3.0
+        assert c.metadata["num_gpus"] == 4
+
+    def test_metadata_independent(self):
+        """Each RunConfig should have its own metadata dict."""
+        c1 = RunConfig(benchmark="a", backend="b", model="m")
+        c2 = RunConfig(benchmark="a", backend="b", model="m")
+        c1.metadata["key"] = "val"
+        assert c2.metadata == {}
+
+
+class TestMetricStats:
+    def test_defaults(self):
+        ms = MetricStats()
+        assert ms.mean == 0.0
+        assert ms.median == 0.0
+        assert ms.min == 0.0
+        assert ms.max == 0.0
+        assert ms.std == 0.0
+
+    def test_with_values(self):
+        ms = MetricStats(mean=0.5, median=0.4, min=0.1, max=0.9, std=0.2)
+        assert ms.mean == 0.5
+        assert ms.median == 0.4
+        assert ms.min == 0.1
+        assert ms.max == 0.9
+        assert ms.std == 0.2
 
 
 class TestRunSummary:
@@ -98,6 +163,45 @@ class TestRunSummary:
         assert s.accuracy == 0.495
         assert s.per_subject["math"]["accuracy"] == 0.5
         assert s.started_at == 0.0
+
+    def test_metric_stats_fields(self):
+        stats = MetricStats(mean=0.5, median=0.4, min=0.1, max=0.9, std=0.2)
+        s = RunSummary(
+            benchmark="test", category="reasoning",
+            backend="jarvis-direct", model="m",
+            total_samples=10, scored_samples=10, correct=5,
+            accuracy=0.5, errors=0, mean_latency_seconds=1.0,
+            total_cost_usd=0.0,
+            accuracy_stats=stats,
+            energy_stats=stats,
+            mfu_stats=stats,
+            mbu_stats=stats,
+            ipw_stats=stats,
+            ipj_stats=stats,
+            total_energy_joules=1000.0,
+        )
+        assert s.accuracy_stats is not None
+        assert s.accuracy_stats.mean == 0.5
+        assert s.energy_stats is not None
+        assert s.mfu_stats is not None
+        assert s.mbu_stats is not None
+        assert s.ipw_stats is not None
+        assert s.ipj_stats is not None
+        assert s.total_energy_joules == 1000.0
+
+    def test_metric_stats_defaults_none(self):
+        s = RunSummary(
+            benchmark="test", category="test",
+            backend="mock", model="m",
+            total_samples=0, scored_samples=0, correct=0,
+            accuracy=0.0, errors=0, mean_latency_seconds=0.0,
+            total_cost_usd=0.0,
+        )
+        assert s.accuracy_stats is None
+        assert s.energy_stats is None
+        assert s.mfu_stats is None
+        assert s.ipw_stats is None
+        assert s.total_energy_joules == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +270,11 @@ class TestModelConfig:
         assert m.provider is None
         assert m.temperature is None
         assert m.max_tokens is None
+        assert m.param_count_b == 0.0
+        assert m.active_params_b is None
+        assert m.gpu_peak_tflops == 0.0
+        assert m.gpu_peak_bandwidth_gb_s == 0.0
+        assert m.num_gpus == 1
 
     def test_with_overrides(self):
         m = ModelConfig(
@@ -176,6 +285,19 @@ class TestModelConfig:
         assert m.provider == "openai"
         assert m.temperature == 0.5
         assert m.max_tokens == 4096
+
+    def test_hardware_params(self):
+        m = ModelConfig(
+            name="GLM-4.7-Flash", engine="vllm",
+            param_count_b=30.0, active_params_b=3.0,
+            gpu_peak_tflops=312.0, gpu_peak_bandwidth_gb_s=2039.0,
+            num_gpus=4,
+        )
+        assert m.param_count_b == 30.0
+        assert m.active_params_b == 3.0
+        assert m.gpu_peak_tflops == 312.0
+        assert m.gpu_peak_bandwidth_gb_s == 2039.0
+        assert m.num_gpus == 4
 
 
 class TestBenchmarkConfig:

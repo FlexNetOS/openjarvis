@@ -63,6 +63,7 @@ class RunConfig:
     dataset_split: Optional[str] = None
     telemetry: bool = False
     gpu_metrics: bool = False
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -159,6 +160,11 @@ class ModelConfig:
     provider: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    param_count_b: float = 0.0
+    active_params_b: Optional[float] = None
+    gpu_peak_tflops: float = 0.0
+    gpu_peak_bandwidth_gb_s: float = 0.0
+    num_gpus: int = 1
 
 
 @dataclass(slots=True)

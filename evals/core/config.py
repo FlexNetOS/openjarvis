@@ -109,6 +109,11 @@ def load_eval_config(path: str | Path) -> EvalSuiteConfig:
             provider=m.get("provider"),
             temperature=float(m["temperature"]) if "temperature" in m else None,
             max_tokens=int(m["max_tokens"]) if "max_tokens" in m else None,
+            param_count_b=float(m.get("param_count_b", 0.0)),
+            active_params_b=float(m["active_params_b"]) if "active_params_b" in m else None,
+            gpu_peak_tflops=float(m.get("gpu_peak_tflops", 0.0)),
+            gpu_peak_bandwidth_gb_s=float(m.get("gpu_peak_bandwidth_gb_s", 0.0)),
+            num_gpus=int(m.get("num_gpus", 1)),
         ))
 
     # Parse [[benchmarks]]
@@ -199,6 +204,19 @@ def expand_suite(suite: EvalSuiteConfig) -> List[RunConfig]:
             model_slug = model.name.replace("/", "-").replace(":", "-")
             output_path = f"{output_dir}/{bench.name}_{model_slug}.jsonl"
 
+            # Build model metadata for efficiency calculations
+            model_meta = {}
+            if model.param_count_b > 0:
+                model_meta["param_count_b"] = model.param_count_b
+            if model.active_params_b is not None:
+                model_meta["active_params_b"] = model.active_params_b
+            if model.gpu_peak_tflops > 0:
+                model_meta["gpu_peak_tflops"] = model.gpu_peak_tflops
+            if model.gpu_peak_bandwidth_gb_s > 0:
+                model_meta["gpu_peak_bandwidth_gb_s"] = model.gpu_peak_bandwidth_gb_s
+            if model.num_gpus > 1:
+                model_meta["num_gpus"] = model.num_gpus
+
             configs.append(RunConfig(
                 benchmark=bench.name,
                 backend=bench.backend,
@@ -216,6 +234,7 @@ def expand_suite(suite: EvalSuiteConfig) -> List[RunConfig]:
                 dataset_split=bench.split,
                 telemetry=suite.run.telemetry,
                 gpu_metrics=suite.run.gpu_metrics,
+                metadata=model_meta,
             ))
 
     return configs

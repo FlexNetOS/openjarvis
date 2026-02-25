@@ -354,6 +354,8 @@ Execution settings that apply to the entire suite.
 | `max_workers` | int | `4` | Number of parallel evaluation threads |
 | `output_dir` | str | `"results/"` | Directory where JSONL and summary files are written |
 | `seed` | int | `42` | Random seed for dataset shuffling |
+| `telemetry` | bool | `false` | Enable GPU telemetry capture (energy, power, utilization, throughput) |
+| `gpu_metrics` | bool | `false` | Enable GPU metric polling via `pynvml` (requires `pynvml` or `nvidia-ml-py`) |
 
 ### `[[models]]`
 
@@ -366,6 +368,11 @@ One block per model. The `name` field is required.
 | `provider` | str | `None` | Provider override for cloud models (e.g., `"openai"`) |
 | `temperature` | float | `None` | Override `[defaults].temperature` for this model |
 | `max_tokens` | int | `None` | Override `[defaults].max_tokens` for this model |
+| `param_count_b` | float | `0.0` | Total model parameter count in billions (for MFU/MBU computation) |
+| `active_params_b` | float | `None` | Active parameters per token in billions (for MoE models; defaults to `param_count_b`) |
+| `gpu_peak_tflops` | float | `0.0` | GPU peak FP16 TFLOPS (e.g., 312.0 for A100 SXM) |
+| `gpu_peak_bandwidth_gb_s` | float | `0.0` | GPU peak memory bandwidth in GB/s (e.g., 2039.0 for A100 SXM) |
+| `num_gpus` | int | `1` | Number of GPUs used (for tensor-parallel inference) |
 
 ### `[[benchmarks]]`
 
@@ -407,11 +414,16 @@ Each line is a JSON object with the following fields:
   "completion_tokens": 12,
   "cost_usd": 0.0,
   "error": null,
-  "scoring_metadata": {
-    "reference_letter": "C",
-    "candidate_letter": "C",
-    "valid_letters": "ABCD"
-  }
+  "scoring_metadata": {"reference_letter": "C", "candidate_letter": "C"},
+  "ttft": 0.0,
+  "energy_joules": 140792.95,
+  "power_watts": 893.0,
+  "gpu_utilization_pct": 47.4,
+  "throughput_tok_per_sec": 36.6,
+  "mfu_pct": 0.0176,
+  "mbu_pct": 26.89,
+  "ipw": 0.00112,
+  "ipj": 0.000007
 }
 ```
 
@@ -430,6 +442,15 @@ Each line is a JSON object with the following fields:
 | `cost_usd` | float | Estimated cost in USD |
 | `error` | str or null | Error message if the sample failed |
 | `scoring_metadata` | dict | Scorer-specific details (extracted letters, judge output, etc.) |
+| `ttft` | float | Time to first token in seconds (0.0 if unavailable) |
+| `energy_joules` | float | GPU energy consumed for this sample (joules) |
+| `power_watts` | float | Average GPU power draw during inference (watts) |
+| `gpu_utilization_pct` | float | Average GPU utilization percentage |
+| `throughput_tok_per_sec` | float | Output token throughput (tokens/sec) |
+| `mfu_pct` | float | Model FLOPs Utilization percentage (requires model hardware params) |
+| `mbu_pct` | float | Memory Bandwidth Utilization percentage (requires model hardware params) |
+| `ipw` | float | Intelligence Per Watt: `accuracy / power_watts` (0 if incorrect or no power data) |
+| `ipj` | float | Intelligence Per Joule: `accuracy / energy_joules` (0 if incorrect or no energy data) |
 
 ### Summary JSON file
 
@@ -453,9 +474,21 @@ After all samples complete, a summary file is written alongside the JSONL at `{o
     "mathematics": {"accuracy": 0.68, "total": 50.0, "scored": 49.0, "correct": 33.0}
   },
   "started_at": 1708789200.0,
-  "ended_at": 1708789496.3
+  "ended_at": 1708789496.3,
+  "accuracy_stats": {"mean": 0.72, "median": 1.0, "min": 0.0, "max": 1.0, "std": 0.45},
+  "energy_stats": {"mean": 140792.95, "median": 135112.79, "min": 3926.17, "max": 1806568.12, "std": 156038.54},
+  "power_stats": {"mean": 892.98, "median": 898.19, "min": 811.50, "max": 1104.90, "std": 42.65},
+  "gpu_utilization_stats": {"mean": 47.41, "median": 47.45, "min": 42.38, "max": 56.23, "std": 2.72},
+  "throughput_stats": {"mean": 36.55, "median": 37.22, "min": 26.22, "max": 45.03, "std": 5.00},
+  "mfu_stats": {"mean": 0.0176, "median": 0.0179, "min": 0.0126, "max": 0.0216, "std": 0.0024},
+  "mbu_stats": {"mean": 26.89, "median": 27.38, "min": 19.29, "max": 33.13, "std": 3.68},
+  "ipw_stats": {"mean": 0.00113, "median": 0.00112, "min": 0.00100, "max": 0.00123, "std": 0.00005},
+  "ipj_stats": {"mean": 0.00003, "median": 0.00001, "min": 0.000002, "max": 0.00021, "std": 0.00004},
+  "total_energy_joules": 28158590.26
 }
 ```
+
+When `telemetry = true` and `gpu_metrics = true` are set in `[run]`, the summary includes `MetricStats` (mean, median, min, max, std) for every telemetry metric plus `total_energy_joules`. These stats are `null` when no values are available for that metric.
 
 The `per_subject` breakdown groups results by the dataset's subject or category field, which varies per benchmark:
 
