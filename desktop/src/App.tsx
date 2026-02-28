@@ -5,8 +5,9 @@ import { TraceDebugger } from './components/TraceDebugger';
 import { LearningCurve } from './components/LearningCurve';
 import { MemoryBrowser } from './components/MemoryBrowser';
 import { AdminPanel } from './components/AdminPanel';
+import { SettingsPanel } from './components/SettingsPanel';
 
-type TabId = 'energy' | 'traces' | 'learning' | 'memory' | 'admin';
+type TabId = 'energy' | 'traces' | 'learning' | 'memory' | 'admin' | 'settings';
 
 interface Tab {
   id: TabId;
@@ -19,6 +20,7 @@ const TABS: Tab[] = [
   { id: 'learning', label: 'Learning' },
   { id: 'memory', label: 'Memory' },
   { id: 'admin', label: 'Admin' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 const API_URL = 'http://localhost:8000';
@@ -54,6 +56,7 @@ export function App() {
         {activeTab === 'learning' && <LearningCurve apiUrl={API_URL} />}
         {activeTab === 'memory' && <MemoryBrowser apiUrl={API_URL} />}
         {activeTab === 'admin' && <AdminPanel apiUrl={API_URL} />}
+        {activeTab === 'settings' && <SettingsPanel />}
       </main>
     </div>
   );
