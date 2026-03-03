@@ -2,13 +2,21 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from openjarvis.core.registry import SpeechRegistry
 from openjarvis.speech._stubs import TranscriptionResult
+from openjarvis.speech.openai_whisper import OpenAIWhisperBackend
+
+
+@pytest.fixture(autouse=True)
+def _register_openai_whisper():
+    """Re-register after any registry clear."""
+    if not SpeechRegistry.contains("openai"):
+        SpeechRegistry.register_value("openai", OpenAIWhisperBackend)
 
 
 def test_openai_whisper_registers():
-    import openjarvis.speech.openai_whisper  # noqa: F401
-    from openjarvis.core.registry import SpeechRegistry
-
     assert SpeechRegistry.contains("openai")
 
 

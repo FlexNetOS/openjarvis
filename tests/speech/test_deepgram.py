@@ -2,13 +2,21 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from openjarvis.core.registry import SpeechRegistry
 from openjarvis.speech._stubs import TranscriptionResult
+from openjarvis.speech.deepgram import DeepgramSpeechBackend
+
+
+@pytest.fixture(autouse=True)
+def _register_deepgram():
+    """Re-register after any registry clear."""
+    if not SpeechRegistry.contains("deepgram"):
+        SpeechRegistry.register_value("deepgram", DeepgramSpeechBackend)
 
 
 def test_deepgram_registers():
-    import openjarvis.speech.deepgram  # noqa: F401
-    from openjarvis.core.registry import SpeechRegistry
-
     assert SpeechRegistry.contains("deepgram")
 
 

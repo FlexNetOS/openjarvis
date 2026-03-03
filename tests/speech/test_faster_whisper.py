@@ -2,12 +2,21 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from openjarvis.core.registry import SpeechRegistry
+from openjarvis.speech.faster_whisper import FasterWhisperBackend
+
+
+@pytest.fixture(autouse=True)
+def _register_faster_whisper():
+    """Re-register after any registry clear."""
+    if not SpeechRegistry.contains("faster-whisper"):
+        SpeechRegistry.register_value("faster-whisper", FasterWhisperBackend)
+
 
 def test_faster_whisper_backend_registers():
     """Backend registers itself in SpeechRegistry."""
-    import openjarvis.speech.faster_whisper  # noqa: F401
-    from openjarvis.core.registry import SpeechRegistry
-
     assert SpeechRegistry.contains("faster-whisper")
 
 
