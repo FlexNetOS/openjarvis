@@ -109,6 +109,9 @@ interface AppState {
   // Sidebar
   sidebarOpen: boolean;
 
+  // System panel
+  systemPanelOpen: boolean;
+
   // Actions: conversations
   loadConversations: () => void;
   createConversation: (model?: string) => string;
@@ -139,6 +142,8 @@ interface AppState {
   setCommandPaletteOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  toggleSystemPanel: () => void;
+  setSystemPanelOpen: (open: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => {
@@ -166,6 +171,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     commandPaletteOpen: false,
     sidebarOpen: true,
+    systemPanelOpen: true,
 
     // ── Conversations ───────────────────────────────────────────────
 
@@ -313,6 +319,8 @@ export const useAppStore = create<AppState>((set, get) => {
     setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
     toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
     setSidebarOpen: (open: boolean) => set({ sidebarOpen: open }),
+    toggleSystemPanel: () => set((s) => ({ systemPanelOpen: !s.systemPanelOpen })),
+    setSystemPanelOpen: (open: boolean) => set({ systemPanelOpen: open }),
   };
 });
 

@@ -3,7 +3,7 @@ import { MessageBubble } from './MessageBubble';
 import { InputArea } from './InputArea';
 import { StreamingDots } from './StreamingDots';
 import { useAppStore } from '../../lib/store';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, PanelRightOpen, PanelRightClose } from 'lucide-react';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -15,6 +15,8 @@ function getGreeting(): string {
 export function ChatArea() {
   const messages = useAppStore((s) => s.messages);
   const streamState = useAppStore((s) => s.streamState);
+  const systemPanelOpen = useAppStore((s) => s.systemPanelOpen);
+  const toggleSystemPanel = useAppStore((s) => s.toggleSystemPanel);
   const listRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
 
@@ -32,8 +34,21 @@ export function ChatArea() {
 
   const isEmpty = messages.length === 0 && !streamState.isStreaming;
 
+  const PanelIcon = systemPanelOpen ? PanelRightClose : PanelRightOpen;
+
   return (
     <div className="flex flex-col h-full">
+      {/* Toggle bar */}
+      <div className="flex items-center justify-end px-3 py-1.5 shrink-0">
+        <button
+          onClick={toggleSystemPanel}
+          className="p-1.5 rounded-md transition-colors cursor-pointer"
+          style={{ color: 'var(--color-text-tertiary)' }}
+          title={`${systemPanelOpen ? 'Hide' : 'Show'} system panel (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+I)`}
+        >
+          <PanelIcon size={16} />
+        </button>
+      </div>
       <div
         ref={listRef}
         onScroll={handleScroll}

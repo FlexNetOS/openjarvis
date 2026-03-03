@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { ChatPage } from './pages/ChatPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { GetStartedPage } from './pages/GetStartedPage';
 import { CommandPalette } from './components/CommandPalette';
 import { useAppStore } from './lib/store';
 import { fetchModels, fetchServerInfo, fetchSavings } from './lib/api';
@@ -51,17 +52,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Global Cmd+K
+  const toggleSystemPanel = useAppStore((s) => s.toggleSystemPanel);
+
+  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setCommandPaletteOpen(!commandPaletteOpen);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
+        e.preventDefault();
+        toggleSystemPanel();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [commandPaletteOpen, setCommandPaletteOpen]);
+  }, [commandPaletteOpen, setCommandPaletteOpen, toggleSystemPanel]);
 
   return (
     <>
@@ -70,6 +77,7 @@ export default function App() {
           <Route index element={<ChatPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="get-started" element={<GetStartedPage />} />
         </Route>
       </Routes>
       {commandPaletteOpen && <CommandPalette />}

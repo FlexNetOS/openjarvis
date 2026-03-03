@@ -161,13 +161,22 @@ class AgentStreamBridge:
             try:
                 agent_result = agent_task.result()
             except Exception as exc:
-                # Engine or agent error — emit a user-friendly error chunk
-                # instead of crashing the SSE stream.
+                import logging
+
+                logger = logging.getLogger("openjarvis.server")
+                logger.error("Agent stream error: %s", exc, exc_info=True)
+
                 error_str = str(exc)
-                if "400" in error_str:
+                if "context length" in error_str.lower() or (
+                    "400" in error_str and "too long" in error_str.lower()
+                ):
                     error_content = (
                         "The input is too long for the model's context window. "
                         "Please try a shorter message."
+                    )
+                elif "400" in error_str:
+                    error_content = (
+                        f"The model returned an error: {error_str}"
                     )
                 else:
                     error_content = f"Sorry, an error occurred: {error_str}"

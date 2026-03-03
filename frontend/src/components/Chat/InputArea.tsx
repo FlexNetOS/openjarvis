@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Square, Paperclip } from 'lucide-react';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat } from '../../lib/sse';
+import { fetchSavings } from '../../lib/api';
 import type { ChatMessage, ToolCallInfo, TokenUsage } from '../../types';
 
 export function InputArea() {
@@ -176,6 +177,10 @@ export function InputArea() {
       }
       resetStream();
       abortRef.current = null;
+
+      fetchSavings()
+        .then((data) => useAppStore.getState().setSavings(data))
+        .catch(() => {});
     }
   }, [
     input,

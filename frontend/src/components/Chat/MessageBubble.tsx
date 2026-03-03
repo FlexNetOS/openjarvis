@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import { Copy, Check } from 'lucide-react';
 import { ToolCallCard } from './ToolCallCard';
 import type { ChatMessage } from '../../types';
+
+function stripThinkTags(text: string): string {
+  let cleaned = text.replace(/<think>[\s\S]*?<\/think>\s*/gi, '');
+  cleaned = cleaned.replace(/^[\s\S]*?<\/think>\s*/i, '');
+  return cleaned.trim();
+}
 
 interface Props {
   message: ChatMessage;
@@ -100,6 +106,8 @@ export function MessageBubble({ message }: Props) {
     );
   }
 
+  const cleanContent = useMemo(() => stripThinkTags(message.content), [message.content]);
+
   return (
     <div className="group mb-6">
       {/* Tool calls */}
@@ -112,7 +120,7 @@ export function MessageBubble({ message }: Props) {
       )}
 
       {/* Assistant message */}
-      {message.content && (
+      {cleanContent && (
         <div className="prose max-w-none">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -121,14 +129,14 @@ export function MessageBubble({ message }: Props) {
               code: CodeBlock,
             }}
           >
-            {message.content}
+            {cleanContent}
           </ReactMarkdown>
         </div>
       )}
 
       {/* Footer: usage + copy */}
       <div className="flex items-center gap-2 mt-1.5 min-h-[24px]">
-        <CopyMessageButton content={message.content} />
+        <CopyMessageButton content={cleanContent} />
         {message.usage && (
           <span className="text-[11px]" style={{ color: 'var(--color-text-tertiary)' }}>
             {message.usage.total_tokens} tokens

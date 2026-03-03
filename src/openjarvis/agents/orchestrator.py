@@ -228,6 +228,7 @@ class OrchestratorAgent(ToolUsingAgent):
             # No tool calls -> check continuation, then final answer
             if not raw_tool_calls:
                 content = self._check_continuation(result, messages)
+                content = self._strip_think_tags(content)
                 self._emit_turn_end(turns=turns, content_length=len(content))
                 return AgentResult(
                     content=content,
@@ -286,7 +287,7 @@ class OrchestratorAgent(ToolUsingAgent):
                 ))
 
         # Max turns exceeded
-        final_content = content if content else ""
+        final_content = self._strip_think_tags(content) if content else ""
         return self._max_turns_result(all_tool_results, turns, content=final_content)
 
 
