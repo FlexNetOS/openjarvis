@@ -61,6 +61,9 @@ desktop/src-tauri/target/
 # Worktrees
 .worktrees/
 
+# Rust
+target/
+
 # Claude plan artifacts
 docs/plans/
 
