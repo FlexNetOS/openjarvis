@@ -160,7 +160,19 @@ class LoopGuard:
             return compressed
 
         # Stage 4: Extreme — system + last 2 exchanges (4 messages)
-        return system_msgs + non_system[-4:]
+        sys_final = [
+            m for m in compressed
+            if hasattr(m, 'role')
+            and str(getattr(m, 'role', '')) == 'system'
+        ]
+        tail = [
+            m for m in compressed
+            if not (
+                hasattr(m, 'role')
+                and str(getattr(m, 'role', '')) == 'system'
+            )
+        ]
+        return sys_final + tail[-4:]
 
     def reset(self) -> None:
         """Reset all tracking state."""
