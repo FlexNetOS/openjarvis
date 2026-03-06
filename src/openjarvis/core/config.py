@@ -286,36 +286,6 @@ class AppleFmEngineConfig:
     host: str = "http://localhost:8079"
 
 
-
-@dataclass(slots=True)
-class ExoEngineConfig:
-    """Per-engine config for Exo."""
-
-    host: str = "http://localhost:52415"
-
-
-@dataclass(slots=True)
-class NexaEngineConfig:
-    """Per-engine config for Nexa."""
-
-    host: str = "http://localhost:18181"
-    device: str = ""
-
-
-@dataclass(slots=True)
-class UzuEngineConfig:
-    """Per-engine config for Uzu."""
-
-    host: str = "http://localhost:8080"
-
-
-@dataclass(slots=True)
-class AppleFmEngineConfig:
-    """Per-engine config for Apple Foundation Models."""
-
-    host: str = "http://localhost:8079"
-
-
 @dataclass
 class EngineConfig:
     """Inference engine settings with nested per-engine configs."""

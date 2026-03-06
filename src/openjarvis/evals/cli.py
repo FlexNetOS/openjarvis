@@ -50,9 +50,26 @@ BENCHMARKS = {
         "description": "TerminalBench Native (Docker)",
     },
     "loghub": {"category": "agentic", "description": "LogHub log anomaly detection"},
-    "ama-bench": {"category": "agentic", "description": "AMA-Bench agent memory assessment"},
-    "lifelong-agent": {"category": "agentic", "description": "LifelongAgentBench sequential task learning"},
-    "webchorearena": {"category": "agentic", "description": "WebChoreArena web chore tasks"},
+    "ama-bench": {
+        "category": "agentic",
+        "description": "AMA-Bench agent memory assessment",
+    },
+    "lifelong-agent": {
+        "category": "agentic",
+        "description": "LifelongAgentBench sequential task learning",
+    },
+    "deepplanning": {
+        "category": "agentic",
+        "description": "DeepPlanning shopping constraints",
+    },
+    "paperarena": {
+        "category": "agentic",
+        "description": "PaperArena paper analysis",
+    },
+    "webchorearena": {
+        "category": "agentic",
+        "description": "WebChoreArena web chore tasks",
+    },
     "workarena": {
         "category": "agentic",
         "description": "WorkArena++ enterprise workflows",
@@ -154,6 +171,12 @@ def _build_dataset(benchmark: str):
     elif benchmark == "lifelong-agent":
         from openjarvis.evals.datasets.lifelong_agent import LifelongAgentDataset
         return LifelongAgentDataset()
+    elif benchmark == "deepplanning":
+        from openjarvis.evals.datasets.deepplanning import DeepPlanningDataset
+        return DeepPlanningDataset()
+    elif benchmark == "paperarena":
+        from openjarvis.evals.datasets.paperarena import PaperArenaDataset
+        return PaperArenaDataset()
     elif benchmark == "webchorearena":
         from openjarvis.evals.datasets.webchorearena import WebChoreArenaDataset
         return WebChoreArenaDataset()
@@ -219,6 +242,12 @@ def _build_scorer(benchmark: str, judge_backend, judge_model: str):
     elif benchmark == "lifelong-agent":
         from openjarvis.evals.scorers.lifelong_agent_scorer import LifelongAgentScorer
         return LifelongAgentScorer(judge_backend, judge_model)
+    elif benchmark == "deepplanning":
+        from openjarvis.evals.scorers.deepplanning_scorer import DeepPlanningScorer
+        return DeepPlanningScorer(judge_backend, judge_model)
+    elif benchmark == "paperarena":
+        from openjarvis.evals.scorers.paperarena_judge import PaperArenaScorer
+        return PaperArenaScorer(judge_backend, judge_model)
     elif benchmark == "webchorearena":
         from openjarvis.evals.scorers.webchorearena_scorer import WebChoreArenaScorer
         return WebChoreArenaScorer(judge_backend, judge_model)

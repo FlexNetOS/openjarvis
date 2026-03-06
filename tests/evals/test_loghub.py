@@ -2,10 +2,13 @@
 
 import csv
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
+from openjarvis.evals.core.types import EvalRecord
 from openjarvis.evals.datasets.loghub import LogHubDataset
+from openjarvis.evals.scorers.loghub_scorer import LogHubScorer
 
 
 class TestLogHubDataset:
@@ -42,7 +45,11 @@ class TestLogHubDatasetDetails:
             writer.writerow({"BlockId": "blk_456", "Label": "Normal"})
 
         ds = LogHubDataset()
-        meta = {"log_file": "HDFS.log", "label_file": "anomaly_label.csv", "mode": "session"}
+        meta = {
+            "log_file": "HDFS.log",
+            "label_file": "anomaly_label.csv",
+            "mode": "session",
+        }
         records = ds._load_session_mode(tmp_path, meta)
 
         assert len(records) == 2
@@ -53,7 +60,8 @@ class TestLogHubDatasetDetails:
 
     def test_window_mode_parsing(self, tmp_path: Path) -> None:
         log_file = tmp_path / "BGL.log"
-        # 5 lines: 3 normal (start with -), 2 anomalous. Window size 3 = 1 full + 1 partial
+        # 5 lines: 3 normal (start with -), 2 anomalous.
+        # Window size 3 = 1 full + 1 partial
         lines = [
             "- normal line 1\n",
             "- normal line 2\n",
@@ -77,11 +85,6 @@ class TestLogHubDatasetDetails:
     def test_size_before_load(self) -> None:
         ds = LogHubDataset()
         assert ds.size() == 0
-
-
-from unittest.mock import MagicMock
-from openjarvis.evals.core.types import EvalRecord
-from openjarvis.evals.scorers.loghub_scorer import LogHubScorer
 
 
 def _mock_backend() -> MagicMock:

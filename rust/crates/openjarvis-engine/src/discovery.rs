@@ -111,18 +111,6 @@ pub fn get_engine_static(
         "apple_fm" => Ok(Engine::AppleFm(OpenAICompatEngine::apple_fm(
             &config.engine.apple_fm.host,
         ))),
-        "exo" => Ok(Engine::Exo(OpenAICompatEngine::exo(
-            &config.engine.exo.host,
-        ))),
-        "nexa" => Ok(Engine::Nexa(OpenAICompatEngine::nexa(
-            &config.engine.nexa.host,
-        ))),
-        "uzu" => Ok(Engine::Uzu(OpenAICompatEngine::uzu(
-            &config.engine.uzu.host,
-        ))),
-        "apple_fm" => Ok(Engine::AppleFm(OpenAICompatEngine::apple_fm(
-            &config.engine.apple_fm.host,
-        ))),
         other => Err(OpenJarvisError::Engine(
             openjarvis_core::error::EngineError::ModelNotFound(format!(
                 "Unknown engine: {}",

@@ -1,6 +1,10 @@
 """Tests for AMA-Bench dataset provider."""
 
+from unittest.mock import MagicMock
+
+from openjarvis.evals.core.types import EvalRecord
 from openjarvis.evals.datasets.ama_bench import AMABenchDataset
+from openjarvis.evals.scorers.ama_bench_judge import AMABenchScorer
 
 
 class TestAMABenchDataset:
@@ -15,11 +19,6 @@ class TestAMABenchDataset:
         assert hasattr(ds, "iter_records")
         assert hasattr(ds, "size")
         assert hasattr(ds, "iter_episodes")
-
-
-from unittest.mock import MagicMock
-from openjarvis.evals.core.types import EvalRecord
-from openjarvis.evals.scorers.ama_bench_judge import AMABenchScorer
 
 
 def _mock_backend() -> MagicMock:
