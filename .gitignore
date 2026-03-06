@@ -42,7 +42,12 @@ Thumbs.db
 # Project
 *.sqlite
 *.db
+*.jsonl
+*.npz
 results/
+logs/
+traces/
+coding_task_*
 get-pip.py
 
 # MkDocs build output
@@ -71,4 +76,4 @@ docs/plans/
 **/src-tauri/gen/schemas/
 
 # Rust build artifacts
-rust/target/
+rust/target/.claude/.nfs*
