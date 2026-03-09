@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class Capability(str, Enum):
@@ -138,8 +141,8 @@ class CapabilityPolicy:
                     )
                 for denied in agent_data.get("deny", []):
                     self.deny(agent_id, denied)
-        except (json.JSONDecodeError, KeyError, TypeError):
-            pass
+        except (json.JSONDecodeError, KeyError, TypeError) as exc:
+            logger.warning("Failed to parse capability policy: %s", exc)
 
     def save(self, path: Path) -> None:
         """Save policy to a JSON file."""

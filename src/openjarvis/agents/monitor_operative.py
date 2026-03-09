@@ -265,8 +265,11 @@ class MonitorOperativeAgent(ToolUsingAgent):
                         state_key = f"monitor_operative:{self._operator_id}:state"
                         if args.get("key", "") == state_key:
                             state_stored_by_tool = True
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+                    except (json.JSONDecodeError, TypeError) as exc:
+                        logger.debug(
+                            "Failed to parse tool call arguments"
+                            " for state tracking: %s", exc,
+                        )
 
                 # Compress observation if strategy requires it
                 observation_content = self._compress_observation(tool_result.content)
@@ -440,8 +443,10 @@ class MonitorOperativeAgent(ToolUsingAgent):
                         value = json.dumps(rel)
                         try:
                             self._memory_backend.store(key, value)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug(
+                                "Failed to store causality relation in memory: %s", exc,
+                            )
         except (json.JSONDecodeError, Exception):
             logger.debug(
                 "Causality extraction failed for tool %s output", tool_name,
@@ -482,8 +487,8 @@ class MonitorOperativeAgent(ToolUsingAgent):
             key = f"{operator_prefix}:structured:{tool_name}"
             try:
                 self._memory_backend.store(key, content[:1000])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to store structured data in memory: %s", exc)
 
     # ------------------------------------------------------------------
     # State persistence (OperativeAgent pattern)
