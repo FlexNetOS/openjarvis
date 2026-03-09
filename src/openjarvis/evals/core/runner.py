@@ -457,7 +457,7 @@ class EvalRunner:
 
         try:
             env = self._dataset.create_task_env(record)
-            initial_obs = env.reset(record)
+            env.reset(record)
 
             # Build system prompt from record (first part before task)
             system_prompt = ""
