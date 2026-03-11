@@ -128,6 +128,12 @@ class AgentManager:
         if "config" in kwargs:
             sets.append("config_json = ?")
             vals.append(json.dumps(kwargs["config"]))
+        total_runs_increment = kwargs.get("total_runs_increment", 0)
+        if total_runs_increment:
+            sets.append("total_runs = total_runs + ?")
+            vals.append(total_runs_increment)
+            sets.append("last_run_at = ?")
+            vals.append(time.time())
         sets.append("updated_at = ?")
         vals.append(time.time())
         vals.append(agent_id)
