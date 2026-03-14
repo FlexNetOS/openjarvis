@@ -8,7 +8,64 @@ use tokio::sync::Mutex;
 
 const OLLAMA_PORT: u16 = 11434;
 const JARVIS_PORT: u16 = 8222;
-const DEFAULT_MODEL: &str = "qwen3:0.6b";
+
+/// Preferred default model (pulled first, used as server default).
+const PREFERRED_MODEL: &str = "qwen3.5:4b";
+
+/// Tiny fallback model — always available even on low-RAM machines.
+const FALLBACK_MODEL: &str = "qwen3:0.6b";
+
+/// Qwen3.5 model variants, ordered smallest to largest.
+/// Each entry is (ollama_tag, approximate_download_size_gb, min_ram_gb).
+const QWEN35_MODELS: &[(&str, f64, f64)] = &[
+    ("qwen3.5:0.8b", 1.0, 4.0),
+    ("qwen3.5:2b", 2.7, 6.0),
+    ("qwen3.5:4b", 3.4, 8.0),
+    ("qwen3.5:9b", 6.6, 12.0),
+    ("qwen3.5:27b", 17.0, 24.0),
+    ("qwen3.5:35b", 24.0, 32.0),
+    ("qwen3.5:122b", 81.0, 96.0),
+];
+
+/// Get total system RAM in GB.
+fn total_ram_gb() -> f64 {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        if let Ok(output) = Command::new("sysctl").args(["-n", "hw.memsize"]).output() {
+            if let Ok(s) = String::from_utf8(output.stdout) {
+                if let Ok(bytes) = s.trim().parse::<u64>() {
+                    return bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+                }
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(contents) = std::fs::read_to_string("/proc/meminfo") {
+            for line in contents.lines() {
+                if line.starts_with("MemTotal:") {
+                    if let Some(kb_str) = line.split_whitespace().nth(1) {
+                        if let Ok(kb) = kb_str.parse::<u64>() {
+                            return kb as f64 / (1024.0 * 1024.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    8.0
+}
+
+/// Return the list of Qwen3.5 models that fit on this machine, smallest first.
+fn models_that_fit() -> Vec<&'static str> {
+    let ram = total_ram_gb();
+    QWEN35_MODELS
+        .iter()
+        .filter(|(_, _, min_ram)| ram >= *min_ram)
+        .map(|(tag, _, _)| *tag)
+        .collect()
+}
 
 /// Resolve full path to a binary by checking common locations.
 /// macOS .app bundles don't inherit the shell PATH, so we probe manually.
@@ -212,7 +269,11 @@ async fn ollama_has_model(model: &str) -> bool {
                 return models.iter().any(|m| {
                     m.get("name")
                         .and_then(|n| n.as_str())
-                        .map(|n| n.starts_with(model.split(':').next().unwrap_or(model)))
+                        .map(|n| {
+                            n == model
+                                || n.strip_suffix(":latest") == Some(model)
+                                || model.strip_suffix(":latest") == Some(n)
+                        })
                         .unwrap_or(false)
                 });
             }
@@ -285,19 +346,22 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
         s.detail = "Inference engine ready.".into();
     }
 
-    // Phase 2: Ensure a default model exists
+    // Phase 2: Ensure at least one model exists.
+    // Pull the small fallback first so the server can start immediately,
+    // then pull the preferred model and remaining Qwen3.5 variants in
+    // the background (Phase 4).
     {
         let mut s = status.lock().await;
         s.phase = "model".into();
-        s.detail = format!("Checking for model {}...", DEFAULT_MODEL);
+        s.detail = format!("Checking for model {}...", FALLBACK_MODEL);
     }
 
-    if !ollama_has_model(DEFAULT_MODEL).await {
+    if !ollama_has_model(FALLBACK_MODEL).await {
         {
             let mut s = status.lock().await;
-            s.detail = format!("Downloading {}... (this may take a minute)", DEFAULT_MODEL);
+            s.detail = format!("Downloading {}... (this may take a minute)", FALLBACK_MODEL);
         }
-        if let Err(e) = pull_model(DEFAULT_MODEL).await {
+        if let Err(e) = pull_model(FALLBACK_MODEL).await {
             let mut s = status.lock().await;
             s.error = Some(format!("Failed to download model: {}", e));
             return;
@@ -331,8 +395,20 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
         return;
     }
 
+    // Use the preferred model if it's already pulled, otherwise fallback.
+    let startup_model = if ollama_has_model(PREFERRED_MODEL).await {
+        PREFERRED_MODEL
+    } else {
+        FALLBACK_MODEL
+    };
+
     let mut cmd = tokio::process::Command::new(&uv_bin);
-    cmd.args(["run", "jarvis", "serve", "--port", &JARVIS_PORT.to_string(), "--agent", "simple"])
+    cmd.args([
+            "run", "jarvis", "serve",
+            "--port", &JARVIS_PORT.to_string(),
+            "--model", startup_model,
+            "--agent", "simple",
+        ])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .current_dir(project_root.as_ref().unwrap());
@@ -368,6 +444,26 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
         s.phase = "ready".into();
         s.detail = "All systems ready.".into();
     }
+
+    // Phase 4: Pull preferred model + remaining Qwen3.5 variants in the
+    // background.  The server is already running with the fallback, so
+    // the user can chat immediately.  As each model finishes pulling it
+    // appears in the /v1/models list (Ollama serves it automatically).
+    let fitting = models_that_fit();
+    tokio::spawn(async move {
+        // Pull the preferred model first so it becomes available quickly.
+        if !ollama_has_model(PREFERRED_MODEL).await {
+            let _ = pull_model(PREFERRED_MODEL).await;
+        }
+        // Then pull remaining models that fit.
+        for model in fitting {
+            if model != PREFERRED_MODEL && model != FALLBACK_MODEL {
+                if !ollama_has_model(model).await {
+                    let _ = pull_model(model).await;
+                }
+            }
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
