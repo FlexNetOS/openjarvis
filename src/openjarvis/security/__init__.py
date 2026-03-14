@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SecurityContext:
-    """Result of setup_security() — engine (possibly wrapped), policy, and audit logger."""
+    """Result of setup_security() — wrapped engine, policy, audit."""
 
     engine: Any
     capability_policy: Any = None

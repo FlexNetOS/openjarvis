@@ -1,7 +1,7 @@
 """Tests for setup_security() helper."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -61,7 +61,7 @@ class TestSetupSecurityEnabled:
         assert sec.audit_logger is not None
 
     def test_graceful_without_rust(self) -> None:
-        """When Rust is unavailable, scanners fail gracefully and engine is unwrapped."""
+        """Scanners fail gracefully when Rust is unavailable."""
         engine = _make_mock_engine()
         bus = EventBus()
         sec = setup_security(_make_config(), engine, bus)
