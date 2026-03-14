@@ -48,6 +48,8 @@ Hours [0-999]  Minutes [0-59]  Seconds [0-59]
 
 The component serializes to the interval string the backend expects (e.g., `"2h30m"`) on submission. Default: 0h 30m 0s.
 
+**Minimum interval validation:** Total interval must be at least 10 seconds to prevent tight loops. The wizard shows a validation error if all three fields sum to less than 10 seconds.
+
 Cron input stays as a text field but gets a helper tooltip showing common patterns (hourly, daily, weekly).
 
 ### Files changed
@@ -60,34 +62,51 @@ Cron input stays as a text field but gets a helper tooltip showing common patter
 
 ### New backend endpoint
 
-`GET /v1/tools` returns all registered tools from `ToolRegistry` with metadata:
+`GET /v1/tools` returns all registered tools from `ToolRegistry` and channels from `ChannelRegistry`, merged into a unified list with metadata:
 
 ```json
 [{
   "name": "web_search",
   "description": "Search the web via Tavily/DuckDuckGo",
   "category": "search",
+  "source": "tool",
   "requires_credentials": true,
   "credential_keys": ["TAVILY_API_KEY"],
   "configured": true
 }]
 ```
 
-The endpoint introspects each tool's `ToolSpec` and checks whether required env vars are set so the UI can show configured vs needs-setup status.
+**Credential metadata source:** Since `ToolSpec` does not have a `credential_keys` field, the endpoint maintains a `TOOL_CREDENTIALS` mapping dict that maps tool/channel names to their required env var keys. This is a static dict in the endpoint module (not on ToolSpec itself) to avoid changing the tool interface. Example:
+
+```python
+TOOL_CREDENTIALS: dict[str, list[str]] = {
+    "web_search": ["TAVILY_API_KEY"],
+    "slack": ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"],
+    "telegram": ["TELEGRAM_BOT_TOKEN"],
+    "email": ["EMAIL_USERNAME", "EMAIL_PASSWORD"],
+    "whatsapp": ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID"],
+    "image_generate": ["OPENAI_API_KEY"],
+    # ... etc for all tools/channels that need credentials
+}
+```
+
+The `configured` field is derived by checking `os.environ.get()` for each required key. The `category` field is read from `ToolSpec.category` where set; for channels, category is always `"communication"`.
+
+**Browser tools:** The 6 browser sub-tools (`browser_navigate`, `browser_click`, `browser_type`, `browser_screenshot`, `browser_extract`, `browser_axtree`) are grouped under a single "Browser" meta-entry in the UI. Selecting "Browser" adds all 6 to `config.tools[]`.
 
 ### Frontend categories
 
-Categories ordered by likely usage. Within each category, tools are ordered by popularity. Each category is collapsible with a "Show all (N)" link to expand beyond the popular defaults.
+Categories ordered by likely usage. Within each category, tools are ordered by popularity. Each category is collapsible with a "Show all (N)" link to expand beyond the popular defaults. Categories are derived from the `category` field returned by `GET /v1/tools`, with a frontend fallback mapping for tools that lack a category.
 
 | Category | Popular (shown by default) | Expandable |
 |----------|---------------------------|------------|
-| **Communication** | Slack, Email, Telegram, WhatsApp | Discord, iMessage (BlueBubbles), Signal, Teams, Google Chat, IRC, Matrix, Mattermost, LINE, Viber, Messenger, Reddit, Mastodon, XMPP, Rocket.Chat, Zulip, Twitch, Nostr, Feishu, Webhook |
-| **Search & Browse** | web_search, browser | — |
+| **Communication** | slack, email, telegram, whatsapp | discord, bluebubbles (iMessage), signal, teams, google_chat, irc, matrix, mattermost, line, viber, messenger, reddit, mastodon, xmpp, rocketchat, zulip, twitch, nostr, feishu, webhook |
+| **Search & Browse** | web_search, Browser (meta-group) | — |
 | **Code & Dev** | code_interpreter, shell_exec, git_status, git_diff | git_log, git_commit, repl, code_interpreter_docker, apply_patch |
 | **Files & Data** | file_read, file_write, pdf_extract | db_query, http_request |
 | **Memory & Knowledge** | retrieval, memory_store | memory_retrieve, memory_search, memory_index, kg_add_entity, kg_add_relation, kg_query, kg_neighbors |
 | **Reasoning & AI** | think, llm, calculator | agent_spawn, agent_send, agent_list, agent_kill |
-| **Media** | image_generate | audio_transcribe, audio_tool |
+| **Media** | image_generate | audio_transcribe |
 
 ### UI behavior
 
@@ -105,14 +124,34 @@ Selecting an unconfigured tool opens an inline expandable card beneath it with l
 
 ### Credential persistence
 
-Backend endpoint `POST /v1/tools/{tool_name}/credentials` accepts key-value pairs and writes them to the credential store. A `GET /v1/tools/{tool_name}/credentials/status` returns which keys are set (without exposing values).
+Backend endpoint `POST /v1/tools/{tool_name}/credentials` accepts key-value pairs. `GET /v1/tools/{tool_name}/credentials/status` returns which keys are set (without exposing values).
+
+**Storage:** Credentials are written to `~/.openjarvis/credentials.toml` (consistent with the existing TOML config pattern in `core/config.py`). File is created with `chmod 600` permissions. Format:
+
+```toml
+[web_search]
+TAVILY_API_KEY = "tvly-..."
+
+[slack]
+SLACK_BOT_TOKEN = "xoxb-..."
+SLACK_APP_TOKEN = "xapp-..."
+```
+
+**Runtime reload:** After writing credentials, the endpoint also calls `os.environ.__setitem__()` for each key so the current process picks them up immediately without restart. On server startup, `credentials.toml` is loaded and injected into `os.environ` before tool/channel imports.
+
+**Security:**
+- File permissions: `0o600` (owner read/write only)
+- Credential values are never returned by any GET endpoint — only boolean `configured` status
+- Key names are validated against the known `TOOL_CREDENTIALS` mapping; unknown keys are rejected
+- Values are stripped of whitespace; empty values are rejected
 
 ### Files changed
 
-- `src/openjarvis/server/agent_manager_routes.py` — New `GET /v1/tools` endpoint
-- `src/openjarvis/server/agent_manager_routes.py` — New credential endpoints
+- `src/openjarvis/server/agent_manager_routes.py` — New `GET /v1/tools` endpoint, credential endpoints
+- `src/openjarvis/core/credentials.py` — New module: load/save/validate credentials from `~/.openjarvis/credentials.toml`
 - `frontend/src/pages/AgentsPage.tsx` — Wizard Step 2 tools section
-- `frontend/src/lib/api.ts` — New `fetchAvailableTools()`, `saveToolCredentials()` functions
+- `frontend/src/lib/api.ts` — New `fetchAvailableTools()`, `saveToolCredentials()` functions, new `ToolInfo` type
+- `frontend/src/types/index.ts` — New `ToolInfo` interface
 
 ---
 
@@ -155,11 +194,15 @@ Backend endpoint `POST /v1/tools/{tool_name}/credentials` accepts key-value pair
 
 ### "Recover" fix
 
-**Current behavior:** Calls API, resets status to idle, returns checkpoint. No visible feedback.
+**Current behavior:** Calls API, but `manager.recover_agent()` only resets status to idle IF a checkpoint exists. When no checkpoint is found, the route returns 404 and the agent stays in "error" state. The frontend calls `refresh()` with no feedback.
 
-**Fix:**
+**Backend fix:**
+- Modify `manager.recover_agent()` to **always** reset status to "idle", regardless of whether a checkpoint exists. The checkpoint is a bonus (restores conversation state), but the primary purpose of "Recover" is to clear the error state.
+- Change the route to return 200 with `{"recovered": true, "checkpoint": <data|null>}` instead of raising 404 when no checkpoint exists.
+
+**Frontend fix:**
 - Show success toast: "Agent recovered to idle state" or "Agent recovered from checkpoint (tick #N)"
-- If no checkpoint exists: "Agent reset to idle (no checkpoint available)"
+- If response has `checkpoint: null`: "Agent reset to idle (no checkpoint available)"
 - If API call fails: show error toast with reason
 - After recover, auto-switch to Overview tab so user sees status change
 
@@ -179,7 +222,9 @@ Backend endpoint `POST /v1/tools/{tool_name}/credentials` accepts key-value pair
 ### Files changed
 
 - `frontend/src/pages/AgentsPage.tsx` — handleRun, handleRecover, Logs tab
-- `src/openjarvis/server/agent_manager_routes.py` — _run_tick error handling
+- `frontend/src/lib/api.ts` — Update `recoverManagedAgent()` to return response body
+- `src/openjarvis/server/agent_manager_routes.py` — _run_tick error handling, recover endpoint fix
+- `src/openjarvis/agents/manager.py` — `recover_agent()` always resets status to idle
 - `src/openjarvis/agents/executor.py` — Structured error_detail in tick finalization
 
 ---
@@ -192,23 +237,23 @@ Replace the "Enable Learning" checkbox with a "Learning" section containing:
 
 **Part A: Router Policy** (all agent types)
 
-Dropdown with descriptions:
-- **None** — "No learning. Agent always uses the selected model." (default)
-- **Heuristic** — "Rule-based model selection. Picks models based on query type (code, math, length, urgency)."
-- **Trace-Driven** — "Learns from past runs. Builds query-type to model mapping over time. Requires 5+ runs to activate."
+Dropdown with descriptions. Display names map to `RouterPolicyRegistry` keys:
+- **None** — "No learning. Agent always uses the selected model." (config value: `null`)
+- **Heuristic** — "Rule-based model selection. Picks models based on query type (code, math, length, urgency)." (config value: `"heuristic"`)
+- **Trace-Driven** — "Learns from past runs. Builds query-type to model mapping over time. Requires 5+ runs to activate." (config value: `"learned"`)
 
 ### Agent Strategies (MonitorOperative only)
 
 **Part B: Strategy dropdowns** (shown only when agent_type is `monitor_operative`)
 
-Four dropdowns, each with a help icon tooltip:
+Four dropdowns, each with a help icon tooltip. Display names and their config values:
 
-| Strategy | Options | Default | Tooltip |
+| Strategy | Options (display → config value) | Default | Tooltip |
 |----------|---------|---------|---------|
-| Memory Extraction | Causality Graph, Scratchpad, Structured JSON, None | Scratchpad | "How the agent extracts and stores findings between runs" |
-| Observation Compression | Summarize, Truncate, None | Summarize | "How long tool outputs are compressed to fit context" |
-| Retrieval Strategy | Hybrid + Self-Eval, Keyword, Semantic, None | Hybrid + Self-Eval | "How the agent retrieves relevant past context" |
-| Task Decomposition | Phased, Monolithic, Hierarchical | Phased | "How the agent breaks down complex instructions into subtasks" |
+| Memory Extraction | Causality Graph → `causality_graph`, Scratchpad → `scratchpad`, Structured JSON → `structured_json`, None → `none` | Causality Graph (`causality_graph`) | "How the agent extracts and stores findings between runs" |
+| Observation Compression | Summarize → `summarize`, Truncate → `truncate`, None → `none` | Summarize (`summarize`) | "How long tool outputs are compressed to fit context" |
+| Retrieval Strategy | Hybrid + Self-Eval → `hybrid_with_self_eval`, Keyword → `keyword`, Semantic → `semantic`, None → `none` | Hybrid + Self-Eval (`hybrid_with_self_eval`) | "How the agent retrieves relevant past context" |
+| Task Decomposition | Phased → `phased`, Monolithic → `monolithic`, Hierarchical → `hierarchical` | Phased (`phased`) | "How the agent breaks down complex instructions into subtasks" |
 
 For non-monitor-operative agent types, Part B is hidden.
 
@@ -226,7 +271,9 @@ The router policy maps to `config.router_policy` (new field). The strategies map
 ### Files changed
 
 - `frontend/src/pages/AgentsPage.tsx` — Wizard Step 2 learning section, Step 3 review
+- `frontend/src/types/index.ts` — Add router_policy and strategy fields to ManagedAgent config type
 - `src/openjarvis/agents/executor.py` — Wire router_policy from agent config when building system
+- `src/openjarvis/system.py` — `SystemBuilder` accepts optional router_policy override
 
 ---
 
@@ -249,11 +296,14 @@ AgentScheduler.register_agent() (if scheduled)
 
 ## Testing Plan
 
-- Unit tests for new `GET /v1/tools` endpoint
-- Unit tests for credential persistence endpoints
+- Unit tests for new `GET /v1/tools` endpoint (tool + channel merging, credential status)
+- Unit tests for credential persistence (`credentials.toml` read/write, permissions, key validation)
 - Unit tests for structured error_detail in executor
+- Unit tests for `recover_agent()` always resetting to idle (with and without checkpoint)
+- Unit tests for interval serialization (hours/minutes/seconds → string, minimum 10s validation)
 - Frontend: manual testing of wizard flow end-to-end
 - Frontend: verify "Run Now" error handling with intentionally broken engine config
-- Frontend: verify "Recover" shows feedback toast
-- Frontend: verify interval serialization (hours/minutes/seconds → string)
+- Frontend: verify "Recover" shows feedback toast and switches to Overview tab
 - Frontend: verify credential gating blocks wizard progression
+- Frontend: verify browser meta-group expands to all 6 sub-tools in config
+- Frontend: verify strategy dropdowns only appear for monitor_operative agent type
