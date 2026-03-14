@@ -1,10 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-/*
- ---break---
- */
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -160,7 +156,6 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    @apply border-border outline-ring/50;
   }
 
   html, body, #root {
@@ -178,7 +173,6 @@
     color: var(--color-text);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    @apply bg-background text-foreground;
   }
 
   ::selection {
@@ -202,9 +196,6 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-text-tertiary);
-  }
-  html {
-    @apply font-sans;
   }
 }
 
@@ -387,9 +378,6 @@
     100% { background-position: 200% center; }
   }
 }
-/*
- ---break---
- */
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -424,9 +412,6 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 }
-/*
- ---break---
- */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -460,30 +445,28 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
-/*
- ---break---
- */
 @theme inline {
-  --font-sans: 'Geist Variable', sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* shadcn component tokens — namespaced to avoid collision with OpenJarvis design tokens */
+  --color-cn-sidebar-ring: var(--sidebar-ring);
+  --color-cn-sidebar-border: var(--sidebar-border);
+  --color-cn-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-cn-sidebar-accent: var(--sidebar-accent);
+  --color-cn-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-cn-sidebar-primary: var(--sidebar-primary);
+  --color-cn-sidebar-foreground: var(--sidebar-foreground);
+  --color-cn-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
+  --color-cn-input: var(--input);
+  --color-cn-border: var(--border);
   --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
+  --color-cn-accent-foreground: var(--accent-foreground);
+  --color-cn-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -496,11 +479,5 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Keep project radius tokens — don't override with shadcn calc values */
 }
