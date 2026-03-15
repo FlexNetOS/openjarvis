@@ -41,7 +41,6 @@ import {
   ChevronRight,
   Send,
   RefreshCw,
-  Info,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -169,10 +168,6 @@ interface WizardState {
   selectedTools: string[];
   budget: string;
   learningEnabled: boolean;
-  intervalH: number;
-  intervalM: number;
-  intervalS: number;
-  memoryExtraction: string;
 }
 
 function LaunchWizard({
@@ -195,10 +190,6 @@ function LaunchWizard({
     selectedTools: [],
     budget: '',
     learningEnabled: false,
-    intervalH: 0,
-    intervalM: 30,
-    intervalS: 0,
-    memoryExtraction: 'causality_graph',
   });
   const [launching, setLaunching] = useState(false);
   const models = useAppStore((s) => s.models);
@@ -235,16 +226,11 @@ function LaunchWizard({
     try {
       const config: Record<string, unknown> = {
         schedule_type: wizard.scheduleType,
-        schedule_value: wizard.scheduleType === 'interval'
-          ? String(wizard.intervalH * 3600 + wizard.intervalM * 60 + wizard.intervalS)
-          : wizard.scheduleValue || undefined,
+        schedule_value: wizard.scheduleValue || undefined,
         tools: wizard.selectedTools,
         learning_enabled: wizard.learningEnabled,
       };
       if (wizard.budget) config.budget = parseFloat(wizard.budget);
-      if (wizard.learningEnabled && wizard.memoryExtraction) {
-        config.memory_extraction = wizard.memoryExtraction;
-      }
       if (wizard.instruction.trim()) config.instruction = wizard.instruction.trim();
       if (wizard.model) config.model = wizard.model;
       const created = await createManagedAgent({
@@ -455,73 +441,120 @@ function LaunchWizard({
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="flex items-center gap-1 text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    Schedule Type
-                    <Info
-                      size={12}
-                      style={{ color: 'var(--color-text-tertiary)', cursor: 'help' }}
-                      title="Manual: runs only when you click Run Now. Cron: standard cron schedule (e.g. 0 */6 * * * = every 6h). Interval: runs repeatedly with a fixed delay."
-                    />
+              {/* Schedule */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                    Schedule
                   </label>
-                  <select
-                    value={wizard.scheduleType}
-                    onChange={(e) => update({ scheduleType: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg text-sm"
-                    style={{
-                      background: 'var(--color-bg)',
-                      border: '1px solid var(--color-border)',
-                      color: 'var(--color-text)',
-                    }}
-                  >
-                    <option value="manual">Manual</option>
-                    <option value="cron">Cron</option>
-                    <option value="interval">Interval</option>
-                  </select>
+                  <div className="relative group">
+                    <span
+                      className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold cursor-help"
+                      style={{ background: 'var(--color-border)', color: 'var(--color-text-tertiary)' }}
+                    >
+                      i
+                    </span>
+                    <div
+                      className="absolute left-0 bottom-full mb-1 w-64 p-2 rounded-lg text-xs hidden group-hover:block z-50"
+                      style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+                    >
+                      <div className="space-y-1.5">
+                        <div><strong>Manual</strong> — Run only when you click &quot;Run Now&quot;</div>
+                        <div><strong>Cron</strong> — UNIX cron schedule (e.g. <code>0 9 * * *</code> = daily at 9 AM)</div>
+                        <div><strong>Interval</strong> — Fixed delay between runs for continuous monitoring</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+                <select
+                  value={wizard.scheduleType}
+                  onChange={(e) => update({ scheduleType: e.target.value, scheduleValue: '' })}
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    background: 'var(--color-bg)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                >
+                  <option value="manual">Manual — Run on demand only</option>
+                  <option value="cron">Cron — Recurring fixed-time schedule</option>
+                  <option value="interval">Interval — Fixed delay between runs</option>
+                </select>
+              </div>
+
+              {/* Interval spinners */}
+              {wizard.scheduleType === 'interval' && (
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    {wizard.scheduleType === 'interval' ? 'Interval' : 'Schedule Value'}
+                    Run Every
                   </label>
-                  {wizard.scheduleType === 'interval' ? (
-                    <div className="flex items-center gap-1">
-                      <input type="number" min={0} max={999} value={wizard.intervalH}
-                        onChange={(e) => update({ intervalH: parseInt(e.target.value) || 0 })}
-                        className="w-14 px-2 py-2 rounded-lg text-sm text-center bg-transparent outline-none"
-                        style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-                      />
-                      <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>h</span>
-                      <input type="number" min={0} max={59} value={wizard.intervalM}
-                        onChange={(e) => update({ intervalM: parseInt(e.target.value) || 0 })}
-                        className="w-14 px-2 py-2 rounded-lg text-sm text-center bg-transparent outline-none"
-                        style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-                      />
-                      <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>m</span>
-                      <input type="number" min={0} max={59} value={wizard.intervalS}
-                        onChange={(e) => update({ intervalS: parseInt(e.target.value) || 0 })}
-                        className="w-14 px-2 py-2 rounded-lg text-sm text-center bg-transparent outline-none"
-                        style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-                      />
-                      <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>s</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['hours', 'minutes', 'seconds'] as const).map((unit) => {
+                      const max = unit === 'hours' ? 999 : 59;
+                      const vals = parseIntervalParts(wizard.scheduleValue);
+                      return (
+                        <div key={unit} className="flex flex-col">
+                          <input
+                            type="number"
+                            min={0}
+                            max={max}
+                            value={vals[unit]}
+                            onChange={(e) => {
+                              const v = { ...vals, [unit]: Math.max(0, Math.min(max, parseInt(e.target.value) || 0)) };
+                              update({ scheduleValue: serializeInterval(v.hours, v.minutes, v.seconds) });
+                            }}
+                            className="w-full px-2 py-2 rounded-lg text-sm text-center bg-transparent outline-none"
+                            style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                          />
+                          <span className="text-[10px] text-center mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>{unit}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {wizard.scheduleValue && parseInt(wizard.scheduleValue) > 0 && parseInt(wizard.scheduleValue) < 10 && (
+                    <div className="text-[10px] mt-1" style={{ color: 'var(--color-error)' }}>
+                      Minimum interval is 10 seconds
                     </div>
-                  ) : (
-                    <input
-                      type="text"
-                      placeholder={wizard.scheduleType === 'cron' ? '0 * * * *' : '—'}
-                      value={wizard.scheduleValue}
-                      onChange={(e) => update({ scheduleValue: e.target.value })}
-                      disabled={wizard.scheduleType === 'manual'}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-transparent outline-none"
-                      style={{
-                        border: '1px solid var(--color-border)',
-                        color: 'var(--color-text)',
-                        opacity: wizard.scheduleType === 'manual' ? 0.4 : 1,
-                      }}
-                    />
                   )}
                 </div>
-              </div>
+              )}
+
+              {/* Cron input */}
+              {wizard.scheduleType === 'cron' && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                      Cron Expression
+                    </label>
+                    <div className="relative group">
+                      <span
+                        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold cursor-help"
+                        style={{ background: 'var(--color-border)', color: 'var(--color-text-tertiary)' }}
+                      >
+                        i
+                      </span>
+                      <div
+                        className="absolute left-0 bottom-full mb-1 w-52 p-2 rounded-lg text-xs hidden group-hover:block z-50"
+                        style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+                      >
+                        <div className="space-y-1">
+                          <div><code>0 * * * *</code> — Every hour</div>
+                          <div><code>0 9 * * *</code> — Daily at 9 AM</div>
+                          <div><code>0 9 * * 1</code> — Mondays at 9 AM</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="0 * * * *"
+                    value={wizard.scheduleValue}
+                    onChange={(e) => update({ scheduleValue: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg text-sm bg-transparent outline-none"
+                    style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
@@ -581,28 +614,6 @@ function LaunchWizard({
                       Enable Learning
                     </span>
                   </label>
-                  {wizard.learningEnabled && (
-                    <div className="mt-2">
-                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                        Learning Technique
-                      </label>
-                      <select
-                        value={wizard.memoryExtraction}
-                        onChange={(e) => update({ memoryExtraction: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg text-sm"
-                        style={{
-                          background: 'var(--color-bg)',
-                          border: '1px solid var(--color-border)',
-                          color: 'var(--color-text)',
-                        }}
-                      >
-                        <option value="causality_graph">Causality Graph</option>
-                        <option value="scratchpad">Scratchpad</option>
-                        <option value="structured_json">Structured JSON</option>
-                        <option value="none">None</option>
-                      </select>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -1142,14 +1153,6 @@ function LogsTab({ agentId }: { agentId: string }) {
                 <span>{t.duration.toFixed(1)}s</span>
                 <span>{t.steps} step{t.steps !== 1 ? 's' : ''}</span>
               </div>
-              {t.outcome !== 'success' && t.error_message && (
-                <div
-                  className="mt-1 text-xs px-2 py-1 rounded"
-                  style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)' }}
-                >
-                  {t.error_message}
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -1221,19 +1224,9 @@ export function AgentsPage() {
   };
 
   const handleRun = async (id: string) => {
-    try {
-      await runManagedAgent(id);
-    } catch (err: any) {
-      const msg = err?.message || 'Unknown error';
-      toast.error('Failed to start agent', { description: msg });
-      useAppStore.getState().addLogEntry({
-        timestamp: Date.now(), level: 'error', category: 'model',
-        message: `Agent run failed: ${msg}`,
-      });
-      return;
-    }
+    await runManagedAgent(id).catch(() => {});
     await refresh();
-    // Delayed check for agent-level errors (e.g. crash during tick)
+    // Wait 3 seconds then check if the agent errored
     setTimeout(async () => {
       try {
         const agent = await fetchManagedAgent(id);
@@ -1252,12 +1245,7 @@ export function AgentsPage() {
   };
 
   const handleRecover = async (id: string) => {
-    try {
-      await recoverManagedAgent(id);
-      toast.success('Agent recovered — status reset to idle');
-    } catch {
-      toast.error('Recovery failed — no checkpoint available');
-    }
+    await recoverManagedAgent(id).catch(() => {});
     await refresh();
   };
 
