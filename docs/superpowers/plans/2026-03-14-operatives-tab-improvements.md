@@ -212,13 +212,13 @@ git commit -m "fix: descriptive error messages when Run Now fails"
 
 **Files:**
 - Modify: `src/openjarvis/agents/errors.py`
-- Test: `tests/agents/test_errors.py`
+- Test: `tests/agents/test_suggest_action.py` (separate file — `test_errors.py` already exists with classify_error tests)
 
 - [ ] **Step 1: Write test for suggested action mapping**
 
 ```python
-# tests/agents/test_errors.py
-"""Tests for error classification and suggested actions."""
+# tests/agents/test_suggest_action.py
+"""Tests for suggest_action helper."""
 from openjarvis.agents.errors import suggest_action, FatalError, RetryableError
 
 
@@ -249,7 +249,7 @@ def test_suggest_action_unknown():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest tests/agents/test_errors.py -v`
+Run: `uv run pytest tests/agents/test_suggest_action.py -v`
 Expected: FAIL — `suggest_action` not defined
 
 - [ ] **Step 3: Implement `suggest_action` in errors.py**
@@ -273,13 +273,13 @@ def suggest_action(error: AgentTickError) -> str:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest tests/agents/test_errors.py -v`
+Run: `uv run pytest tests/agents/test_suggest_action.py -v`
 Expected: All 5 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openjarvis/agents/errors.py tests/agents/test_errors.py
+git add src/openjarvis/agents/errors.py tests/agents/test_suggest_action.py
 git commit -m "feat: add suggest_action helper for structured error messages"
 ```
 
@@ -645,7 +645,7 @@ from unittest.mock import patch
 
 def test_tools_endpoint_returns_list():
     """GET /v1/tools should return a list of tool info dicts."""
-    from openjarvis.server.agent_manager_routes import _build_tools_list
+    from openjarvis.server.agent_manager_routes import build_tools_list as _build_tools_list
     tools = _build_tools_list()
     assert isinstance(tools, list)
     assert len(tools) > 0
@@ -661,7 +661,7 @@ def test_tools_endpoint_returns_list():
 
 
 def test_tools_includes_channels():
-    from openjarvis.server.agent_manager_routes import _build_tools_list
+    from openjarvis.server.agent_manager_routes import build_tools_list as _build_tools_list
     tools = _build_tools_list()
     names = {t["name"] for t in tools}
     # Should include at least some channel entries
@@ -670,7 +670,7 @@ def test_tools_includes_channels():
 
 
 def test_browser_meta_group():
-    from openjarvis.server.agent_manager_routes import _build_tools_list
+    from openjarvis.server.agent_manager_routes import build_tools_list as _build_tools_list
     tools = _build_tools_list()
     names = {t["name"] for t in tools}
     # Browser sub-tools should be grouped under "browser"
@@ -685,99 +685,95 @@ Expected: FAIL — `_build_tools_list` not defined
 
 - [ ] **Step 3: Implement `_build_tools_list` and route**
 
-Add to `src/openjarvis/server/agent_manager_routes.py`, inside the `create_agent_manager_routes` function, after the template endpoints:
+Add a **module-level** function `build_tools_list` to `src/openjarvis/server/agent_manager_routes.py` (before `create_agent_manager_routes`). This keeps it importable for tests:
 
 ```python
-    # ── Tools Discovery ───────────────────────────────────────
+_BROWSER_SUB_TOOLS = {
+    "browser_navigate", "browser_click", "browser_type",
+    "browser_screenshot", "browser_extract", "browser_axtree",
+}
 
-    BROWSER_SUB_TOOLS = {
-        "browser_navigate", "browser_click", "browser_type",
-        "browser_screenshot", "browser_extract", "browser_axtree",
-    }
 
-    def _build_tools_list() -> list[dict[str, Any]]:
-        """Build unified tools list from ToolRegistry + ChannelRegistry."""
-        import os
-        from openjarvis.core.credentials import TOOL_CREDENTIALS
+def build_tools_list() -> List[Dict[str, Any]]:
+    """Build unified tools list from ToolRegistry + ChannelRegistry."""
+    import os
+    from openjarvis.core.credentials import TOOL_CREDENTIALS
+    from openjarvis.core.registry import ToolRegistry, ChannelRegistry
 
-        items: list[dict[str, Any]] = []
+    items: List[Dict[str, Any]] = []
 
-        # Tools from ToolRegistry
-        try:
-            from openjarvis.tools._stubs import ToolRegistry
-            for name, tool_cls in ToolRegistry.items():
-                if name in BROWSER_SUB_TOOLS:
-                    continue  # grouped under "browser" meta-entry
-                spec = getattr(tool_cls, "spec", None)
-                if callable(spec):
-                    try:
-                        spec = spec(tool_cls)
-                    except Exception:
-                        spec = None
-                cred_keys = TOOL_CREDENTIALS.get(name, [])
-                items.append({
-                    "name": name,
-                    "description": spec.description if spec else "",
-                    "category": spec.category if spec else "",
-                    "source": "tool",
-                    "requires_credentials": len(cred_keys) > 0,
-                    "credential_keys": cred_keys,
-                    "configured": all(bool(os.environ.get(k)) for k in cred_keys) if cred_keys else True,
-                })
-        except ImportError:
-            pass
+    # Tools from ToolRegistry
+    try:
+        for name, tool_cls in ToolRegistry.items():
+            if name in _BROWSER_SUB_TOOLS:
+                continue  # grouped under "browser" meta-entry
+            spec = getattr(tool_cls, "spec", None)
+            if callable(spec):
+                try:
+                    spec = spec(tool_cls)
+                except Exception:
+                    spec = None
+            cred_keys = TOOL_CREDENTIALS.get(name, [])
+            items.append({
+                "name": name,
+                "description": spec.description if spec else "",
+                "category": spec.category if spec else "",
+                "source": "tool",
+                "requires_credentials": len(cred_keys) > 0,
+                "credential_keys": cred_keys,
+                "configured": all(bool(os.environ.get(k)) for k in cred_keys) if cred_keys else True,
+            })
+    except Exception:
+        pass
 
-        # Add browser meta-entry if any browser sub-tool is registered
-        try:
-            from openjarvis.tools._stubs import ToolRegistry
-            if any(ToolRegistry.contains(n) for n in BROWSER_SUB_TOOLS):
-                items.append({
-                    "name": "browser",
-                    "description": "Web browser automation (navigate, click, type, screenshot, extract)",
-                    "category": "browser",
-                    "source": "tool",
-                    "requires_credentials": False,
-                    "credential_keys": [],
-                    "configured": True,
-                })
-        except ImportError:
-            pass
+    # Add browser meta-entry if any browser sub-tool is registered
+    try:
+        if any(ToolRegistry.contains(n) for n in _BROWSER_SUB_TOOLS):
+            items.append({
+                "name": "browser",
+                "description": "Web browser automation (navigate, click, type, screenshot, extract)",
+                "category": "browser",
+                "source": "tool",
+                "requires_credentials": False,
+                "credential_keys": [],
+                "configured": True,
+            })
+    except Exception:
+        pass
 
-        # Channels from ChannelRegistry
-        try:
-            from openjarvis.channels._stubs import ChannelRegistry
-            for name, _cls in ChannelRegistry.items():
-                cred_keys = TOOL_CREDENTIALS.get(name, [])
-                items.append({
-                    "name": name,
-                    "description": f"{name.replace('_', ' ').title()} messaging channel",
-                    "category": "communication",
-                    "source": "channel",
-                    "requires_credentials": len(cred_keys) > 0,
-                    "credential_keys": cred_keys,
-                    "configured": all(bool(os.environ.get(k)) for k in cred_keys) if cred_keys else True,
-                })
-        except ImportError:
-            pass
+    # Channels from ChannelRegistry
+    try:
+        for name, _cls in ChannelRegistry.items():
+            cred_keys = TOOL_CREDENTIALS.get(name, [])
+            items.append({
+                "name": name,
+                "description": f"{name.replace('_', ' ').title()} messaging channel",
+                "category": "communication",
+                "source": "channel",
+                "requires_credentials": len(cred_keys) > 0,
+                "credential_keys": cred_keys,
+                "configured": all(bool(os.environ.get(k)) for k in cred_keys) if cred_keys else True,
+            })
+    except Exception:
+        pass
 
-        return items
+    return items
+```
 
-    # Expose for testing
-    import types
-    create_agent_manager_routes._build_tools_list = _build_tools_list  # type: ignore[attr-defined]
+Then inside `create_agent_manager_routes`, after the template endpoints, add the routes:
 
+```python
     tools_router = APIRouter(prefix="/v1/tools", tags=["tools"])
 
     @tools_router.get("")
     def list_tools():
-        return {"tools": _build_tools_list()}
+        return {"tools": build_tools_list()}
 
     @tools_router.post("/{tool_name}/credentials")
-    def save_tool_credentials(tool_name: str, request: Request):
-        import asyncio
+    async def save_tool_credentials(tool_name: str, request: Request):
         from openjarvis.core.credentials import save_credential
 
-        body = asyncio.get_event_loop().run_until_complete(request.json())
+        body = await request.json()
         saved = []
         for key, value in body.items():
             save_credential(tool_name, key, value)
@@ -790,7 +786,15 @@ Add to `src/openjarvis/server/agent_manager_routes.py`, inside the `create_agent
         return get_credential_status(tool_name)
 ```
 
-Also update the return value of `create_agent_manager_routes` to include `tools_router`. Find where the function returns routers and add `tools_router` to the returned tuple.
+**Also update the return value** of `create_agent_manager_routes` to include `tools_router` — add it to the returned tuple. Then update the call site in `src/openjarvis/server/api_routes.py` where the routers are unpacked (find the line that destructures the 3-tuple and add the 4th):
+
+```python
+# Before:
+agents_r, templates_r, global_r = create_agent_manager_routes(...)
+# After:
+agents_r, templates_r, global_r, tools_r = create_agent_manager_routes(...)
+app.include_router(tools_r)
+```
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -807,6 +811,8 @@ git commit -m "feat: GET /v1/tools endpoint with credential status"
 ---
 
 ## Chunk 2: Frontend — Schedule, Budget, Model (Issues 1-5)
+
+> **Note:** Line numbers reference the original `AgentsPage.tsx` file. They will shift as earlier tasks add/remove lines. Use the surrounding code context (variable names, JSX structure) to locate the correct insertion points rather than relying on exact line numbers after Task 7.
 
 ### Task 7: Add schedule help tooltips and structured interval input
 
@@ -1029,13 +1035,21 @@ Replace the budget review line (around line 522-524):
 ```tsx
                 <div className="flex justify-between">
                   <span style={{ color: 'var(--color-text-tertiary)' }}>Budget</span>
-                  <span style={{ color: 'var(--color-text)' }}>{wizard.budget ? `$${wizard.budget}` : 'Unlimited'}</span>
+                  <span style={{ color: 'var(--color-text)' }}>{wizard.budget ? `$${wizard.budget}` : 'Unlimited (local models free)'}</span>
                 </div>
 ```
 
-No change needed here — it already shows "Unlimited" which is fine.
+- [ ] **Step 3: Add reactive model subscription to LaunchWizard**
 
-- [ ] **Step 3: Enhance model select with grouping**
+Inside the `LaunchWizard` component, near the top (after the `useState` calls), add:
+
+```typescript
+  const models = useAppStore((s) => s.models);
+```
+
+This ensures model list re-renders reactively (the existing `useAppStore.getState()` pattern was not reactive).
+
+- [ ] **Step 4: Enhance model select with grouping**
 
 Replace the model select (lines 370-388):
 
@@ -1055,22 +1069,27 @@ Replace the model select (lines 370-388):
                 >
                   <option value="">Server default</option>
                   {(() => {
-                    const models = useAppStore.getState().models;
                     const local = models.filter((m) => !m.id.includes('/') && !m.id.startsWith('gpt') && !m.id.startsWith('claude') && !m.id.startsWith('gemini'));
                     const cloud = models.filter((m) => m.id.includes('/') || m.id.startsWith('gpt') || m.id.startsWith('claude') || m.id.startsWith('gemini'));
+                    const formatModel = (m: { id: string; context_length?: number; params?: string }) => {
+                      const parts = [m.id];
+                      if (m.params) parts.push(`(${m.params})`);
+                      if (m.context_length) parts.push(`${Math.round(m.context_length / 1024)}K ctx`);
+                      return parts.join(' ');
+                    };
                     return (
                       <>
                         {local.length > 0 && (
                           <optgroup label="Local (Running)">
                             {local.map((m) => (
-                              <option key={m.id} value={m.id}>{m.id}</option>
+                              <option key={m.id} value={m.id}>{formatModel(m)}</option>
                             ))}
                           </optgroup>
                         )}
                         {cloud.length > 0 && (
                           <optgroup label="Cloud">
                             {cloud.map((m) => (
-                              <option key={m.id} value={m.id}>{m.id}</option>
+                              <option key={m.id} value={m.id}>{formatModel(m)}</option>
                             ))}
                           </optgroup>
                         )}
@@ -1321,10 +1340,11 @@ Inside the `LaunchWizard` component (after `const [launching, setLaunching] = us
   }
 ```
 
-Also add these imports at the top of the file:
+Also **merge** these into the existing `import { ... } from '../lib/api'` line at the top of the file (do NOT add a duplicate import path):
 
 ```typescript
-import { fetchAvailableTools, saveToolCredentials, type ToolInfo } from '../lib/api';
+// Add to the existing import from '../lib/api':
+fetchAvailableTools, saveToolCredentials, type ToolInfo
 ```
 
 - [ ] **Step 3: Replace the tools grid JSX**
@@ -1641,6 +1661,8 @@ git commit -m "feat: structured error details in Logs tab with expandable entrie
 
 ### Task 13: Learning technique selection in wizard
 
+> **Important:** Steps 1-2 (WizardState change) and Step 5 (handleLaunch config) MUST be applied together. The old `learningEnabled` field is removed from WizardState and replaced with `routerPolicy` — if Step 1 is applied without Step 5, the code will not compile due to references to the removed field.
+
 **Files:**
 - Modify: `frontend/src/pages/AgentsPage.tsx:135-146` (WizardState)
 - Modify: `frontend/src/pages/AgentsPage.tsx:474-486` (replace learning checkbox)
@@ -1732,7 +1754,7 @@ Replace lines 474-486 (the learning checkbox section, second column of the grid)
                 </div>
               </div>
 
-              {/* Agent Strategies (monitor_operative only) */}
+              {/* Agent Strategies — shown for monitor_operative (default when no template selected) */}
               {(!wizard.templateId || templates.find((t) => t.id === wizard.templateId)?.agent_type === 'monitor_operative') && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
@@ -1765,7 +1787,7 @@ Replace lines 474-486 (the learning checkbox section, second column of the grid)
                         </div>
                         <select
                           value={wizard[s.key]}
-                          onChange={(e) => update({ [s.key]: e.target.value })}
+                          onChange={(e) => update({ [s.key]: e.target.value } as Partial<WizardState>)}
                           className="w-full px-2 py-1.5 rounded text-xs"
                           style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
                         >
