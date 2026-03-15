@@ -308,6 +308,7 @@ def create_agent_manager_router(
                         "duration": t.total_latency_seconds,
                         "started_at": t.started_at,
                         "steps": len(t.steps),
+                        "metadata": t.metadata,
                     }
                     for t in traces
                 ]
