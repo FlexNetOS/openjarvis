@@ -1,7 +1,13 @@
 """Tests for credential persistence module."""
 import os
+
 import pytest
-from openjarvis.core.credentials import load_credentials, save_credential, get_credential_status
+
+from openjarvis.core.credentials import (
+    get_credential_status,
+    load_credentials,
+    save_credential,
+)
 
 
 @pytest.fixture

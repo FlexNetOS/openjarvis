@@ -1,5 +1,5 @@
 """Tests for suggest_action helper."""
-from openjarvis.agents.errors import suggest_action, FatalError, RetryableError
+from openjarvis.agents.errors import FatalError, RetryableError, suggest_action
 
 
 def test_suggest_action_rate_limit():
@@ -19,7 +19,8 @@ def test_suggest_action_auth():
 
 def test_suggest_action_not_found():
     err = FatalError("model not found (404)")
-    assert "model name" in suggest_action(err).lower() or "endpoint" in suggest_action(err).lower()
+    action = suggest_action(err).lower()
+    assert "model name" in action or "endpoint" in action
 
 
 def test_suggest_action_unknown():

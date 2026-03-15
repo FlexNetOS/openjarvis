@@ -35,9 +35,8 @@ class TestAgentManagerRoutes:
         from openjarvis.server.agent_manager_routes import create_agent_manager_router
 
         app = FastAPI()
-        agents_router, templates_router, global_router, tools_router = create_agent_manager_router(
-            manager
-        )
+        routers = create_agent_manager_router(manager)
+        agents_router, templates_router, global_router, tools_router = routers
         app.include_router(agents_router)
         app.include_router(templates_router)
         app.include_router(global_router)

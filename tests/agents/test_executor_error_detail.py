@@ -1,6 +1,6 @@
 """Tests for structured error_detail in executor traces."""
+from openjarvis.agents.errors import EscalateError, FatalError, RetryableError
 from openjarvis.agents.executor import AgentExecutor
-from openjarvis.agents.errors import FatalError, RetryableError, EscalateError
 from openjarvis.core.events import EventBus
 
 
