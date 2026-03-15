@@ -18,8 +18,10 @@ import {
   triggerLearning,
   fetchAgentTraces,
   fetchManagedAgent,
+  fetchAvailableTools,
+  saveToolCredentials,
 } from '../lib/api';
-import type { AgentTask, ChannelBinding, AgentTemplate, AgentMessage, ManagedAgent, LearningLogEntry, AgentTrace } from '../lib/api';
+import type { AgentTask, ChannelBinding, AgentTemplate, AgentMessage, ManagedAgent, LearningLogEntry, AgentTrace, ToolInfo } from '../lib/api';
 import {
   Plus,
   Bot,
@@ -136,13 +138,57 @@ function formatSchedule(type?: string, value?: string): string {
 // Launch Wizard
 // ---------------------------------------------------------------------------
 
-const AVAILABLE_TOOLS = [
-  { id: 'web_search', label: 'Web Search' },
-  { id: 'code_interpreter', label: 'Code Interpreter' },
-  { id: 'file_read', label: 'File Read' },
-  { id: 'shell_exec', label: 'Shell Exec' },
-  { id: 'browser', label: 'Browser' },
-  { id: 'calculator', label: 'Calculator' },
+const CATEGORY_MAP: Record<string, string> = {
+  communication: 'Communication',
+  channel: 'Communication',
+  search: 'Search & Browse',
+  browser: 'Search & Browse',
+  code: 'Code & Dev',
+  system: 'Code & Dev',
+  filesystem: 'Files & Data',
+  memory: 'Memory & Knowledge',
+  knowledge_graph: 'Memory & Knowledge',
+  reasoning: 'Reasoning & AI',
+  math: 'Reasoning & AI',
+  inference: 'Reasoning & AI',
+  agents: 'Reasoning & AI',
+  media: 'Media',
+};
+
+const TOOL_NAME_FALLBACK: Record<string, string> = {
+  file_read: 'Files & Data',
+  file_write: 'Files & Data',
+  pdf_extract: 'Files & Data',
+  db_query: 'Files & Data',
+  http_request: 'Files & Data',
+  apply_patch: 'Code & Dev',
+  git_status: 'Code & Dev',
+  git_diff: 'Code & Dev',
+  git_log: 'Code & Dev',
+  git_commit: 'Code & Dev',
+  channel_send: 'Communication',
+  channel_list: 'Communication',
+  channel_status: 'Communication',
+};
+
+const CATEGORY_ORDER = [
+  'Communication', 'Search & Browse', 'Code & Dev', 'Files & Data',
+  'Memory & Knowledge', 'Reasoning & AI', 'Media',
+];
+
+const POPULAR_TOOLS = new Set([
+  'slack', 'email', 'telegram', 'whatsapp',
+  'web_search', 'browser',
+  'code_interpreter', 'shell_exec', 'git_status', 'git_diff',
+  'file_read', 'file_write', 'pdf_extract',
+  'retrieval', 'memory_store',
+  'think', 'llm', 'calculator',
+  'image_generate',
+]);
+
+const BROWSER_SUB_TOOLS = [
+  'browser_navigate', 'browser_click', 'browser_type',
+  'browser_screenshot', 'browser_extract', 'browser_axtree',
 ];
 
 function parseIntervalParts(val: string): { hours: number; minutes: number; seconds: number } {
@@ -193,6 +239,58 @@ function LaunchWizard({
   });
   const [launching, setLaunching] = useState(false);
   const models = useAppStore((s) => s.models);
+  const [availableTools, setAvailableTools] = useState<ToolInfo[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [credentialInputs, setCredentialInputs] = useState<Record<string, Record<string, string>>>({});
+  const [savingCredentials, setSavingCredentials] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAvailableTools().then(setAvailableTools).catch(() => {});
+  }, []);
+
+  function getToolCategory(tool: ToolInfo): string {
+    if (tool.category && CATEGORY_MAP[tool.category]) return CATEGORY_MAP[tool.category];
+    if (TOOL_NAME_FALLBACK[tool.name]) return TOOL_NAME_FALLBACK[tool.name];
+    return 'Reasoning & AI';
+  }
+
+  function toggleCategory(cat: string) {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
+  function handleToggleTool(name: string) {
+    if (name === 'browser') {
+      const has = BROWSER_SUB_TOOLS.every((t) => wizard.selectedTools.includes(t));
+      if (has) {
+        update({ selectedTools: wizard.selectedTools.filter((t) => !BROWSER_SUB_TOOLS.includes(t)) });
+      } else {
+        update({ selectedTools: [...new Set([...wizard.selectedTools, ...BROWSER_SUB_TOOLS])] });
+      }
+    } else {
+      toggleTool(name);
+    }
+  }
+
+  async function handleSaveCredentials(toolName: string) {
+    const inputs = credentialInputs[toolName];
+    if (!inputs) return;
+    setSavingCredentials(toolName);
+    try {
+      await saveToolCredentials(toolName, inputs);
+      toast.success(`Credentials saved for ${toolName}`);
+      const updated = await fetchAvailableTools();
+      setAvailableTools(updated);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save credentials');
+    } finally {
+      setSavingCredentials(null);
+    }
+  }
 
   function update(partial: Partial<WizardState>) {
     setWizard((prev) => ({ ...prev, ...partial }));
@@ -558,29 +656,110 @@ function LaunchWizard({
 
               <div>
                 <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                  Tools
+                  Tools &amp; Channels
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {AVAILABLE_TOOLS.map((tool) => (
-                    <label
-                      key={tool.id}
-                      className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
-                      style={{
-                        background: wizard.selectedTools.includes(tool.id) ? 'var(--color-accent)' + '10' : 'var(--color-bg-secondary)',
-                        border: `1px solid ${wizard.selectedTools.includes(tool.id) ? 'var(--color-accent)' + '50' : 'var(--color-border)'}`,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={wizard.selectedTools.includes(tool.id)}
-                        onChange={() => toggleTool(tool.id)}
-                        className="accent-current"
-                      />
-                      <span className="text-xs" style={{ color: 'var(--color-text)' }}>
-                        {tool.label}
-                      </span>
-                    </label>
-                  ))}
+                {(() => {
+                  const unconfiguredSelected = wizard.selectedTools.filter((t) => {
+                    const tool = availableTools.find((at) => at.name === t);
+                    return tool && tool.requires_credentials && !tool.configured;
+                  });
+                  return unconfiguredSelected.length > 0 ? (
+                    <div className="text-[10px] mb-2 px-2 py-1 rounded" style={{ background: '#f59e0b20', color: '#f59e0b' }}>
+                      {unconfiguredSelected.length} tool{unconfiguredSelected.length > 1 ? 's' : ''} need setup — credentials required before they will work
+                    </div>
+                  ) : null;
+                })()}
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {CATEGORY_ORDER.map((cat) => {
+                    const catTools = availableTools.filter((t) => getToolCategory(t) === cat);
+                    if (catTools.length === 0) return null;
+                    const popular = catTools.filter((t) => POPULAR_TOOLS.has(t.name));
+                    const rest = catTools.filter((t) => !POPULAR_TOOLS.has(t.name));
+                    const isExpanded = expandedCategories.has(cat);
+                    const shown = isExpanded ? catTools : popular;
+
+                    return (
+                      <div key={cat}>
+                        <div
+                          className="flex items-center justify-between cursor-pointer mb-1"
+                          onClick={() => rest.length > 0 && toggleCategory(cat)}
+                        >
+                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-tertiary)' }}>
+                            {cat} ({catTools.length})
+                          </span>
+                          {rest.length > 0 && (
+                            <span className="text-[10px]" style={{ color: 'var(--color-accent)' }}>
+                              {isExpanded ? 'Show less' : `Show all (${catTools.length})`}
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {shown.map((tool) => {
+                            const isSelected = tool.name === 'browser'
+                              ? BROWSER_SUB_TOOLS.every((t) => wizard.selectedTools.includes(t))
+                              : wizard.selectedTools.includes(tool.name);
+                            const needsSetup = tool.requires_credentials && !tool.configured;
+                            return (
+                              <div key={tool.name}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleTool(tool.name)}
+                                  className="w-full text-left p-2 rounded-lg text-xs transition-colors cursor-pointer"
+                                  style={{
+                                    background: isSelected ? 'var(--color-accent)' + '10' : 'var(--color-bg-secondary)',
+                                    border: `1px solid ${isSelected ? 'var(--color-accent)' + '50' : 'var(--color-border)'}`,
+                                    color: 'var(--color-text)',
+                                  }}
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    {isSelected && <span style={{ color: 'var(--color-accent)' }}>&#10003;</span>}
+                                    <span className="font-medium">{tool.name.replace(/_/g, ' ')}</span>
+                                    {needsSetup && <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#f59e0b' }} />}
+                                  </div>
+                                  {tool.description && (
+                                    <div className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--color-text-tertiary)' }}>
+                                      {tool.description.slice(0, 60)}
+                                    </div>
+                                  )}
+                                </button>
+                                {isSelected && needsSetup && (
+                                  <div className="mt-1 p-2 rounded-lg text-xs space-y-1.5" style={{ background: 'var(--color-bg)', border: '1px solid #f59e0b40' }}>
+                                    {tool.credential_keys.map((key) => (
+                                      <div key={key}>
+                                        <label className="block text-[10px] mb-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+                                          {key.replace(/_/g, ' ')}
+                                        </label>
+                                        <input
+                                          type="password"
+                                          value={credentialInputs[tool.name]?.[key] || ''}
+                                          onChange={(e) => setCredentialInputs((prev) => ({
+                                            ...prev,
+                                            [tool.name]: { ...prev[tool.name], [key]: e.target.value },
+                                          }))}
+                                          className="w-full px-2 py-1 rounded text-xs bg-transparent outline-none"
+                                          style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                                          placeholder={`Enter ${key}`}
+                                        />
+                                      </div>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveCredentials(tool.name)}
+                                      disabled={savingCredentials === tool.name}
+                                      className="px-2 py-1 rounded text-[10px] font-medium cursor-pointer"
+                                      style={{ background: 'var(--color-accent)', color: 'white' }}
+                                    >
+                                      {savingCredentials === tool.name ? 'Saving...' : 'Save'}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
