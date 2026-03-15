@@ -1289,6 +1289,7 @@ function LearningTab({ agentId, learningEnabled }: { agentId: string; learningEn
 
 function LogsTab({ agentId }: { agentId: string }) {
   const [traces, setTraces] = useState<AgentTrace[]>([]);
+  const [expandedTrace, setExpandedTrace] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAgentTraces(agentId).then(setTraces).catch(() => {});
@@ -1310,30 +1311,64 @@ function LogsTab({ agentId }: { agentId: string }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {traces.map((t) => (
-            <div
-              key={t.id}
-              className="rounded-lg p-3 text-sm"
-              style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-2 h-2 rounded-full inline-block"
-                    style={{ background: t.outcome === 'success' ? '#22c55e' : '#ef4444' }}
-                  />
-                  <span style={{ color: 'var(--color-text)' }}>{t.outcome}</span>
+          {traces.map((t) => {
+            const errorDetail = t.metadata?.error_detail as
+              | { error_type: string; error_message: string; suggested_action: string }
+              | undefined;
+            const isError = t.outcome !== 'success';
+            const isExpanded = expandedTrace === t.id;
+
+            return (
+              <div
+                key={t.id}
+                className="rounded-lg p-3 text-sm cursor-pointer"
+                style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
+                onClick={() => isError && errorDetail && setExpandedTrace(isExpanded ? null : t.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2 h-2 rounded-full inline-block"
+                      style={{ background: t.outcome === 'success' ? '#22c55e' : '#ef4444' }}
+                    />
+                    <span style={{ color: 'var(--color-text)' }}>{t.outcome}</span>
+                    {errorDetail && (
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                        style={{
+                          background: errorDetail.error_type === 'fatal' ? '#ef444420' :
+                            errorDetail.error_type === 'escalate' ? '#f59e0b20' : '#3b82f620',
+                          color: errorDetail.error_type === 'fatal' ? '#ef4444' :
+                            errorDetail.error_type === 'escalate' ? '#f59e0b' : '#3b82f6',
+                        }}
+                      >
+                        {errorDetail.error_type}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                    {formatRelativeTime(t.started_at)}
+                  </span>
                 </div>
-                <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                  {formatRelativeTime(t.started_at)}
-                </span>
+                <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                  <span>{t.duration.toFixed(1)}s</span>
+                  <span>{t.steps} step{t.steps !== 1 ? 's' : ''}</span>
+                </div>
+                {isExpanded && errorDetail && (
+                  <div className="mt-2 pt-2 space-y-1.5 text-xs" style={{ borderTop: '1px solid var(--color-border)' }}>
+                    <div>
+                      <span className="font-medium" style={{ color: 'var(--color-text-secondary)' }}>Error: </span>
+                      <span style={{ color: 'var(--color-text)' }}>{errorDetail.error_message}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium" style={{ color: 'var(--color-text-secondary)' }}>Action: </span>
+                      <span style={{ color: 'var(--color-text)' }}>{errorDetail.suggested_action}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                <span>{t.duration.toFixed(1)}s</span>
-                <span>{t.steps} step{t.steps !== 1 ? 's' : ''}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
