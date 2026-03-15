@@ -185,6 +185,25 @@ class AgentExecutor:
         if not model:
             raise FatalError("No model configured for agent")
 
+        # Optionally override model via router policy
+        router_policy_key = config.get("router_policy")
+        if router_policy_key and self._system:
+            try:
+                from openjarvis.core.registry import RouterPolicyRegistry
+                from openjarvis.learning.routing.types import RoutingContext, build_routing_context
+
+                policy = RouterPolicyRegistry.create(
+                    router_policy_key,
+                    available_models=[model],
+                )
+                instruction = config.get("instruction", "")
+                ctx = build_routing_context(instruction)
+                selected = policy.select_model(ctx)
+                if selected:
+                    model = selected
+            except Exception:
+                pass  # Fall back to configured model
+
         # Construct agent instance (BaseAgent requires engine, model as positional args)
         agent_instance = agent_cls(
             engine,
