@@ -116,8 +116,21 @@ function formatRelativeTime(ts?: number | null): string {
 function formatSchedule(type?: string, value?: string): string {
   if (!type || type === 'manual') return 'Manual';
   if (type === 'cron') return value ? `Cron: ${value}` : 'Cron';
-  if (type === 'interval') return value ? `Every ${value}` : 'Interval';
-  return type;
+  if (type === 'interval' && value) {
+    const total = parseInt(value);
+    if (!isNaN(total) && total > 0) {
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      const parts: string[] = [];
+      if (h > 0) parts.push(`${h}h`);
+      if (m > 0) parts.push(`${m}m`);
+      if (s > 0) parts.push(`${s}s`);
+      return `Every ${parts.join(' ') || '0s'}`;
+    }
+    return `Every ${value}`;
+  }
+  return type || 'Manual';
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +145,18 @@ const AVAILABLE_TOOLS = [
   { id: 'browser', label: 'Browser' },
   { id: 'calculator', label: 'Calculator' },
 ];
+
+function parseIntervalParts(val: string): { hours: number; minutes: number; seconds: number } {
+  const total = parseInt(val) || 0;
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return { hours, minutes, seconds };
+}
+
+function serializeInterval(hours: number, minutes: number, seconds: number): string {
+  return String(hours * 3600 + minutes * 60 + seconds);
+}
 
 interface WizardState {
   step: number;
@@ -176,6 +201,7 @@ function LaunchWizard({
     memoryExtraction: 'causality_graph',
   });
   const [launching, setLaunching] = useState(false);
+  const models = useAppStore((s) => s.models);
 
   function update(partial: Partial<WizardState>) {
     setWizard((prev) => ({ ...prev, ...partial }));
@@ -383,7 +409,7 @@ function LaunchWizard({
 
               {/* Model */}
               <div>
-                <div className="text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>Model</div>
+                <div className="text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>Intelligence (Model)</div>
                 <select
                   value={wizard.model}
                   onChange={(e) => update({ model: e.target.value })}
@@ -395,9 +421,37 @@ function LaunchWizard({
                   }}
                 >
                   <option value="">Server default</option>
-                  {useAppStore.getState().models.map((m) => (
-                    <option key={m.id} value={m.id}>{m.id}</option>
-                  ))}
+                  {(() => {
+                    const local = models.filter((m) => !m.id.includes('/') && !m.id.startsWith('gpt') && !m.id.startsWith('claude') && !m.id.startsWith('gemini'));
+                    const cloud = models.filter((m) => m.id.includes('/') || m.id.startsWith('gpt') || m.id.startsWith('claude') || m.id.startsWith('gemini'));
+                    const formatModel = (m: { id: string; context_length?: number; params?: string }) => {
+                      const parts = [m.id];
+                      if ((m as any).params) parts.push(`(${(m as any).params})`);
+                      if ((m as any).context_length) parts.push(`${Math.round((m as any).context_length / 1024)}K ctx`);
+                      return parts.join(' ');
+                    };
+                    return (
+                      <>
+                        {local.length > 0 && (
+                          <optgroup label="Local (Running)">
+                            {local.map((m) => (
+                              <option key={m.id} value={m.id}>{formatModel(m)}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {cloud.length > 0 && (
+                          <optgroup label="Cloud">
+                            {cloud.map((m) => (
+                              <option key={m.id} value={m.id}>{formatModel(m)}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {local.length === 0 && cloud.length === 0 && (
+                          <option disabled>No models available — start an engine or add API keys</option>
+                        )}
+                      </>
+                    );
+                  })()}
                 </select>
               </div>
 
@@ -500,7 +554,7 @@ function LaunchWizard({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    Budget ($, optional)
+                    Budget (optional)
                   </label>
                   <input
                     type="number"
@@ -512,9 +566,9 @@ function LaunchWizard({
                     className="w-full px-3 py-2 rounded-lg text-sm bg-transparent outline-none"
                     style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
                   />
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
-                    Maximum cloud API spend. Does not apply to local models.
-                  </p>
+                  <div className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+                    Cloud API models only (OpenAI, Anthropic, Google). Local models have no cost.
+                  </div>
                 </div>
                 <div className="flex flex-col justify-end">
                   <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg" style={{ background: 'var(--color-bg-secondary)' }}>
@@ -588,7 +642,7 @@ function LaunchWizard({
                 </div>
                 <div className="flex justify-between">
                   <span style={{ color: 'var(--color-text-tertiary)' }}>Budget</span>
-                  <span style={{ color: 'var(--color-text)' }}>{wizard.budget ? `$${wizard.budget}` : 'Unlimited'}</span>
+                  <span style={{ color: 'var(--color-text)' }}>{wizard.budget ? `$${wizard.budget}` : 'Unlimited (local models free)'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span style={{ color: 'var(--color-text-tertiary)' }}>Learning</span>
