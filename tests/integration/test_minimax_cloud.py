@@ -22,6 +22,7 @@ _skip_no_key = pytest.mark.skipif(
 
 
 @_skip_no_key
+@pytest.mark.cloud
 class TestMiniMaxCloudIntegration:
     """Live integration tests against MiniMax Cloud API."""
 

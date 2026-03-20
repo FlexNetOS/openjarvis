@@ -667,6 +667,7 @@ class CloudEngine(InferenceEngine):
         # MiniMax requires temperature in (0.0, 1.0]; clamp zero
         temperature = max(temperature, 0.01)
         temperature = min(temperature, 1.0)
+        # MiniMax API does not support response_format; drop it to avoid errors
         kwargs.pop("response_format", None)
         create_kwargs: Dict[str, Any] = {
             "model": model,
