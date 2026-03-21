@@ -16,7 +16,6 @@ from openjarvis.optimize.types import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-
 def _make_trial(
     trial_id: str,
     accuracy: float = 0.0,
@@ -92,7 +91,6 @@ DEFAULT_OBJECTIVES = [
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-
 
 class TestComputeParetoFrontier:
     """Tests for :func:`compute_pareto_frontier`."""
@@ -187,8 +185,7 @@ class TestComputeParetoFrontier:
         )
 
         frontier = compute_pareto_frontier(
-            [trial_a, trial_b, trial_c],
-            objectives,
+            [trial_a, trial_b, trial_c], objectives,
         )
 
         ids = {t.trial_id for t in frontier}
@@ -213,8 +210,7 @@ class TestComputeParetoFrontier:
         trial_c = _make_trial("C", accuracy=0.55, energy=120.0)
 
         frontier = compute_pareto_frontier(
-            [trial_a, trial_b, trial_c],
-            objectives,
+            [trial_a, trial_b, trial_c], objectives,
         )
 
         ids = {t.trial_id for t in frontier}

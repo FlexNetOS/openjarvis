@@ -61,24 +61,18 @@ class TestAuditLogger:
     def test_query_by_type(self, tmp_path: Path) -> None:
         logger = AuditLogger(db_path=tmp_path / "audit.db")
 
-        logger.log(
-            SecurityEvent(
-                event_type=SecurityEventType.SECRET_DETECTED,
-                timestamp=time.time(),
-            )
-        )
-        logger.log(
-            SecurityEvent(
-                event_type=SecurityEventType.PII_DETECTED,
-                timestamp=time.time(),
-            )
-        )
-        logger.log(
-            SecurityEvent(
-                event_type=SecurityEventType.SECRET_DETECTED,
-                timestamp=time.time(),
-            )
-        )
+        logger.log(SecurityEvent(
+            event_type=SecurityEventType.SECRET_DETECTED,
+            timestamp=time.time(),
+        ))
+        logger.log(SecurityEvent(
+            event_type=SecurityEventType.PII_DETECTED,
+            timestamp=time.time(),
+        ))
+        logger.log(SecurityEvent(
+            event_type=SecurityEventType.SECRET_DETECTED,
+            timestamp=time.time(),
+        ))
 
         secrets = logger.query(event_type="secret_detected")
         assert len(secrets) == 2
@@ -93,18 +87,14 @@ class TestAuditLogger:
         t1 = time.time() - 100
         t2 = time.time()
 
-        logger.log(
-            SecurityEvent(
-                event_type=SecurityEventType.SECRET_DETECTED,
-                timestamp=t1,
-            )
-        )
-        logger.log(
-            SecurityEvent(
-                event_type=SecurityEventType.SECRET_DETECTED,
-                timestamp=t2,
-            )
-        )
+        logger.log(SecurityEvent(
+            event_type=SecurityEventType.SECRET_DETECTED,
+            timestamp=t1,
+        ))
+        logger.log(SecurityEvent(
+            event_type=SecurityEventType.SECRET_DETECTED,
+            timestamp=t2,
+        ))
 
         recent = logger.query(since=t2 - 1)
         assert len(recent) == 1
@@ -156,12 +146,10 @@ class TestAuditLogger:
     def test_close_and_reopen(self, tmp_path: Path) -> None:
         db_path = tmp_path / "audit.db"
         logger = AuditLogger(db_path=db_path)
-        logger.log(
-            SecurityEvent(
-                event_type=SecurityEventType.SECRET_DETECTED,
-                timestamp=time.time(),
-            )
-        )
+        logger.log(SecurityEvent(
+            event_type=SecurityEventType.SECRET_DETECTED,
+            timestamp=time.time(),
+        ))
         logger.close()
 
         logger2 = AuditLogger(db_path=db_path)

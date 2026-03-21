@@ -200,10 +200,9 @@ class TestAgentConfigNew:
 
     def test_no_temperature_or_max_tokens(self) -> None:
         ac = AgentConfig()
-        assert (
-            not hasattr(ac.__class__, "temperature")
-            or isinstance(getattr(ac.__class__, "temperature", None), property) is False
-        )
+        assert not hasattr(ac.__class__, "temperature") or isinstance(
+            getattr(ac.__class__, "temperature", None), property
+        ) is False
 
 
 class TestNestedEngineConfig:
@@ -289,9 +288,9 @@ class TestNestedLearningConfig:
     def test_loads_nested_toml(self, tmp_path: Path) -> None:
         toml_file = tmp_path / "config.toml"
         toml_file.write_text(
-            "[learning]\nenabled = true\nupdate_interval = 50\n\n"
+            '[learning]\nenabled = true\nupdate_interval = 50\n\n'
             '[learning.routing]\npolicy = "learned"\n\n'
-            "[learning.metrics]\nlatency_weight = 0.5\n"
+            '[learning.metrics]\nlatency_weight = 0.5\n'
         )
         cfg = load_config(toml_file)
         assert cfg.learning.enabled is True
@@ -316,14 +315,16 @@ class TestNestedLearningConfig:
 class TestBackwardCompatMigration:
     def test_agent_temperature_migrates_to_intelligence(self, tmp_path: Path) -> None:
         toml_file = tmp_path / "config.toml"
-        toml_file.write_text("[agent]\ntemperature = 0.3\nmax_tokens = 512\n")
+        toml_file.write_text(
+            '[agent]\ntemperature = 0.3\nmax_tokens = 512\n'
+        )
         cfg = load_config(toml_file)
         assert cfg.intelligence.temperature == 0.3
         assert cfg.intelligence.max_tokens == 512
 
     def test_memory_context_injection_migrates_to_agent(self, tmp_path: Path) -> None:
         toml_file = tmp_path / "config.toml"
-        toml_file.write_text("[memory]\ncontext_injection = false\n")
+        toml_file.write_text('[memory]\ncontext_injection = false\n')
         cfg = load_config(toml_file)
         assert cfg.agent.context_from_memory is False
 
@@ -399,7 +400,8 @@ class TestSandboxConfig:
     def test_loads_from_toml(self, tmp_path: Path) -> None:
         toml_file = tmp_path / "config.toml"
         toml_file.write_text(
-            '[sandbox]\nenabled = true\ntimeout = 600\nruntime = "podman"\n'
+            '[sandbox]\nenabled = true\ntimeout = 600\n'
+            'runtime = "podman"\n'
         )
         cfg = load_config(toml_file)
         assert cfg.sandbox.enabled is True
@@ -433,7 +435,7 @@ class TestSchedulerConfig:
     def test_loads_from_toml(self, tmp_path: Path) -> None:
         toml_file = tmp_path / "config.toml"
         toml_file.write_text(
-            "[scheduler]\nenabled = true\npoll_interval = 30\n"
+            '[scheduler]\nenabled = true\npoll_interval = 30\n'
             'db_path = "/tmp/sched.db"\n'
         )
         cfg = load_config(toml_file)

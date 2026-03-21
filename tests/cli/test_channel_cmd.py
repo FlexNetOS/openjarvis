@@ -25,8 +25,7 @@ def _patch_channel(
     bridge_instance.status.return_value = status_return
 
     config_patch = mock.patch(
-        "openjarvis.core.config.load_config",
-        return_value=cfg,
+        "openjarvis.core.config.load_config", return_value=cfg,
     )
     get_channel_patch = mock.patch(
         "openjarvis.cli.channel_cmd._get_channel",
@@ -76,8 +75,7 @@ class TestChannelSend:
         config_p, getch_p, _ = _patch_channel(send_return=True)
         with config_p, getch_p:
             result = CliRunner().invoke(
-                cli,
-                ["channel", "send", "slack", "Hello!"],
+                cli, ["channel", "send", "slack", "Hello!"],
             )
         assert result.exit_code == 0
         assert "Message sent" in result.output
@@ -86,8 +84,7 @@ class TestChannelSend:
         config_p, getch_p, _ = _patch_channel(send_return=False)
         with config_p, getch_p:
             result = CliRunner().invoke(
-                cli,
-                ["channel", "send", "slack", "Hello!"],
+                cli, ["channel", "send", "slack", "Hello!"],
             )
         assert result.exit_code == 0
         assert "Failed to send" in result.output

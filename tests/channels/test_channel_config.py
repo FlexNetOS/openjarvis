@@ -66,9 +66,7 @@ class TestChannelConfig:
 class TestTomlLoading:
     def _write_toml(self, content: str) -> Path:
         f = tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".toml",
-            delete=False,
+            mode="w", suffix=".toml", delete=False,
         )
         f.write(content)
         f.flush()

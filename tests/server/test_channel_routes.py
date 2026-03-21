@@ -47,8 +47,7 @@ def app_with_bridge(mock_engine, mock_bridge):
     from openjarvis.server.app import create_app
 
     return create_app(
-        mock_engine,
-        "test-model",
+        mock_engine, "test-model",
         channel_bridge=mock_bridge,
     )
 

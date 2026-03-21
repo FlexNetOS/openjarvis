@@ -18,16 +18,9 @@ class TestCapability:
 
     def test_all_capabilities_exist(self):
         expected = {
-            "file:read",
-            "file:write",
-            "network:fetch",
-            "code:execute",
-            "memory:read",
-            "memory:write",
-            "channel:send",
-            "tool:invoke",
-            "schedule:create",
-            "system:admin",
+            "file:read", "file:write", "network:fetch", "code:execute",
+            "memory:read", "memory:write", "channel:send", "tool:invoke",
+            "schedule:create", "system:admin",
         }
         actual = {c.value for c in Capability}
         assert expected == actual

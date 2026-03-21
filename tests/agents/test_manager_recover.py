@@ -1,5 +1,4 @@
 """Tests for AgentManager.recover_agent() always resetting status."""
-
 import pytest
 
 from openjarvis.agents.manager import AgentManager

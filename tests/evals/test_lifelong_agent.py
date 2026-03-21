@@ -55,18 +55,13 @@ def _db_record(direct=None, md5=None, sql="SELECT * FROM users", skills=None):
     answer_info = {"direct": direct, "md5": md5, "sql": sql}
     answer_type = "md5" if md5 else "direct"
     return EvalRecord(
-        record_id="test-1",
-        problem="task",
+        record_id="test-1", problem="task",
         reference=json.dumps(answer_info),
-        category="agentic",
-        subject=f"db_{answer_type}",
+        category="agentic", subject=f"db_{answer_type}",
         metadata={
-            "answer_info": answer_info,
-            "answer_type": answer_type,
-            "skills": skills or [],
-            "table_info": _TABLE_INFO,
-            "table_name": "users",
-            "subset": "db_bench",
+            "answer_info": answer_info, "answer_type": answer_type,
+            "skills": skills or [], "table_info": _TABLE_INFO,
+            "table_name": "users", "subset": "db_bench",
             "sample_index": 0,
         },
     )
@@ -74,11 +69,9 @@ def _db_record(direct=None, md5=None, sql="SELECT * FROM users", skills=None):
 
 def _kg_record(answer_list=None, skills=None, action_list=None):
     return EvalRecord(
-        record_id="test-kg-1",
-        problem="question",
+        record_id="test-kg-1", problem="question",
         reference=json.dumps(answer_list or []),
-        category="agentic",
-        subject="knowledge_graph",
+        category="agentic", subject="knowledge_graph",
         metadata={
             "subset": "knowledge_graph",
             "question": "What is the answer?",
@@ -93,11 +86,9 @@ def _kg_record(answer_list=None, skills=None, action_list=None):
 
 def _os_record():
     return EvalRecord(
-        record_id="test-os-1",
-        problem="task",
+        record_id="test-os-1", problem="task",
         reference="{}",
-        category="agentic",
-        subject="os_interaction",
+        category="agentic", subject="os_interaction",
         metadata={
             "subset": "os_interaction",
             "instruction": "Create a file",
@@ -121,7 +112,6 @@ def _os_record():
 # ---------------------------------------------------------------------------
 # DB building
 # ---------------------------------------------------------------------------
-
 
 class TestBuildDB:
     def test_creates_table_with_rows(self) -> None:
@@ -184,7 +174,6 @@ class TestTableStateComparison:
 # SQL extraction (original's Action: Operation format)
 # ---------------------------------------------------------------------------
 
-
 class TestExtractSQL:
     def test_action_operation_format(self) -> None:
         text = "Action: Operation\n```sql\nSELECT * FROM users;\n```"
@@ -221,7 +210,6 @@ class TestExtractSQL:
 # ---------------------------------------------------------------------------
 # Text answer parsing (DirectTypeAnswerValidator format)
 # ---------------------------------------------------------------------------
-
 
 class TestTextAnswerParsing:
     def test_tuple_list(self) -> None:
@@ -261,7 +249,6 @@ class TestTextAnswerParsing:
 # DB scorer: direct (SELECT)
 # ---------------------------------------------------------------------------
 
-
 class TestScorerDBDirect:
     def test_correct_sql(self) -> None:
         s = LifelongAgentScorer()
@@ -278,8 +265,7 @@ class TestScorerDBDirect:
             direct=[[1, "Alice", 95.5], [2, "Bob", 87.0], [3, "Carol", 92.3]],
         )
         ok, meta = s.score(
-            r,
-            "Action: Operation\n```sql\nSELECT * FROM users\n```",
+            r, "Action: Operation\n```sql\nSELECT * FROM users\n```",
         )
         assert ok is True
 
@@ -310,8 +296,7 @@ class TestScorerDBDirect:
 
     def test_no_sql_in_response(self) -> None:
         ok, meta = LifelongAgentScorer().score(
-            _db_record(direct=[[1]]),
-            "I don't know",
+            _db_record(direct=[[1]]), "I don't know",
         )
         assert ok is False
 
@@ -319,8 +304,7 @@ class TestScorerDBDirect:
         s = LifelongAgentScorer()
         r = _db_record(direct=[[1, "Alice", 95.5]])
         ok, meta = s.score(
-            r,
-            "Action: Answer\nFinal Answer: [(1, 'Alice', 95.5)]",
+            r, "Action: Answer\nFinal Answer: [(1, 'Alice', 95.5)]",
         )
         assert ok is True
         assert meta["strategy"] == "text_answer_parsing"
@@ -337,7 +321,6 @@ class TestScorerDBDirect:
 # ---------------------------------------------------------------------------
 # DB scorer: md5 (INSERT/UPDATE/DELETE)
 # ---------------------------------------------------------------------------
-
 
 class TestScorerDBMD5:
     def test_correct_insert(self) -> None:
@@ -380,7 +363,6 @@ class TestScorerDBMD5:
 # KG scorer
 # ---------------------------------------------------------------------------
 
-
 class TestScorerKG:
     def test_single_shot_unscorable(self) -> None:
         """KG tasks should be unscorable in single-shot mode."""
@@ -417,7 +399,6 @@ class TestScorerKG:
 # OS scorer
 # ---------------------------------------------------------------------------
 
-
 class TestScorerOS:
     def test_returns_scorable_status(self) -> None:
         s = LifelongAgentScorer()
@@ -431,7 +412,6 @@ class TestScorerOS:
 # ---------------------------------------------------------------------------
 # KG answer extraction
 # ---------------------------------------------------------------------------
-
 
 class TestExtractKGAnswers:
     def test_entity_id(self) -> None:
@@ -461,7 +441,6 @@ class TestExtractKGAnswers:
 # Bash command extraction
 # ---------------------------------------------------------------------------
 
-
 class TestExtractBashCommands:
     def test_act_format(self) -> None:
         text = "Act: ```bash\nls -la /tmp\n```"
@@ -489,7 +468,6 @@ class TestExtractBashCommands:
 # ---------------------------------------------------------------------------
 # Value comparison
 # ---------------------------------------------------------------------------
-
 
 class TestValueComparison:
     def test_int(self) -> None:
@@ -534,7 +512,6 @@ class TestTupleComparison:
 # Episode grouping
 # ---------------------------------------------------------------------------
 
-
 class TestEpisodeGrouping:
     def test_single_subset_episode(self) -> None:
         ds = LifelongAgentDataset(subset="db_bench")
@@ -559,18 +536,14 @@ class TestEpisodeGrouping:
         ds._records = [
             EvalRecord(
                 record_id="lifelong-db-0",
-                problem="task",
-                reference="{}",
-                category="agentic",
-                subject="db_direct",
+                problem="task", reference="{}",
+                category="agentic", subject="db_direct",
                 metadata={"subset": "db_bench", "sample_index": 0},
             ),
             EvalRecord(
                 record_id="lifelong-kg-0",
-                problem="task",
-                reference="{}",
-                category="agentic",
-                subject="knowledge_graph",
+                problem="task", reference="{}",
+                category="agentic", subject="knowledge_graph",
                 metadata={"subset": "knowledge_graph", "sample_index": 0},
             ),
         ]
@@ -582,10 +555,8 @@ class TestEpisodeGrouping:
         ds._records = [
             EvalRecord(
                 record_id=f"lifelong-db-{i}",
-                problem="task",
-                reference="{}",
-                category="agentic",
-                subject="db_direct",
+                problem="task", reference="{}",
+                category="agentic", subject="db_direct",
                 metadata={"subset": "db_bench", "sample_index": i},
             )
             for i in range(5)
@@ -599,7 +570,6 @@ class TestEpisodeGrouping:
 # ---------------------------------------------------------------------------
 # Dataset
 # ---------------------------------------------------------------------------
-
 
 class TestDataset:
     def test_instantiation_default(self) -> None:
@@ -632,7 +602,6 @@ class TestDataset:
 # ---------------------------------------------------------------------------
 # Multi-turn environments
 # ---------------------------------------------------------------------------
-
 
 class TestDBEnvironment:
     def test_multi_turn_select(self) -> None:
@@ -674,15 +643,15 @@ class TestDBEnvironment:
         from openjarvis.evals.environments.lifelong_agent_env import DBEnvironment
 
         record = _db_record(
-            md5="x",
-            sql="INSERT INTO users VALUES (4, 'Dave', 88.0)",
+            md5="x", sql="INSERT INTO users VALUES (4, 'Dave', 88.0)",
         )
         env = DBEnvironment(use_mysql=False)
         env.reset(record)
 
         # Agent executes the correct INSERT
         obs, done = env.step(
-            "Action: Operation\n```sql\nINSERT INTO users VALUES (4, 'Dave', 88.0)\n```"
+            "Action: Operation\n```sql\n"
+            "INSERT INTO users VALUES (4, 'Dave', 88.0)\n```"
         )
         assert not done
         assert "successfully" in obs.lower() or "Result" in obs
@@ -845,24 +814,20 @@ class TestOSEnvironment:
 # CLI wiring
 # ---------------------------------------------------------------------------
 
-
 class TestCLI:
     def test_in_benchmarks(self) -> None:
         from openjarvis.evals.cli import BENCHMARKS
-
         assert "lifelong-agent" in BENCHMARKS
         assert BENCHMARKS["lifelong-agent"]["category"] == "agentic"
 
     def test_build_dataset(self) -> None:
         from openjarvis.evals.cli import _build_dataset
-
         ds = _build_dataset("lifelong-agent")
         assert ds.dataset_id == "lifelong-agent"
         assert hasattr(ds, "create_task_env")
 
     def test_build_scorer(self) -> None:
         from openjarvis.evals.cli import _build_scorer
-
         s = _build_scorer("lifelong-agent", None, "test-model")
         assert s.scorer_id == "lifelong-agent"
 
@@ -871,11 +836,9 @@ class TestCLI:
 # Runner episode_mode integration
 # ---------------------------------------------------------------------------
 
-
 class TestRunnerEpisodeMode:
     def test_episode_mode_field_exists(self) -> None:
         from openjarvis.evals.core.types import RunConfig
-
         config = RunConfig(
             benchmark="lifelong-agent",
             backend="jarvis-direct",
@@ -886,7 +849,6 @@ class TestRunnerEpisodeMode:
 
     def test_runner_has_episode_mode_method(self) -> None:
         from openjarvis.evals.core.runner import EvalRunner
-
         assert hasattr(EvalRunner, "_run_episode_mode")
         assert hasattr(EvalRunner, "_process_interactive")
         assert hasattr(EvalRunner, "_inject_examples")
@@ -896,11 +858,8 @@ class TestRunnerEpisodeMode:
         from openjarvis.evals.core.runner import EvalRunner
 
         record = EvalRecord(
-            record_id="test",
-            problem="What is 2+2?",
-            reference="4",
-            category="reasoning",
-            subject="math",
+            record_id="test", problem="What is 2+2?",
+            reference="4", category="reasoning", subject="math",
             metadata={},
         )
         # Call the static-ish method
@@ -913,11 +872,8 @@ class TestRunnerEpisodeMode:
         from openjarvis.evals.core.runner import EvalRunner
 
         record = EvalRecord(
-            record_id="test",
-            problem="What is 2+2?",
-            reference="4",
-            category="reasoning",
-            subject="math",
+            record_id="test", problem="What is 2+2?",
+            reference="4", category="reasoning", subject="math",
             metadata={},
         )
         examples = [{"problem": "What is 1+1?", "answer": "2"}]
@@ -932,25 +888,20 @@ class TestRunnerEpisodeMode:
         from openjarvis.evals.core.runner import EvalRunner
 
         record = EvalRecord(
-            record_id="test",
-            problem="What is 3+3?",
-            reference="6",
-            category="reasoning",
-            subject="math",
+            record_id="test", problem="What is 3+3?",
+            reference="6", category="reasoning", subject="math",
             metadata={},
         )
-        examples = [
-            {
-                "problem": "What is 1+1?",
-                "answer": "2",
-                "interaction_history": [
-                    {"role": "user", "content": "What is 1+1?"},
-                    {"role": "assistant", "content": "Action: compute(1+1)"},
-                    {"role": "user", "content": "Result: 2"},
-                    {"role": "assistant", "content": "Final Answer: 2"},
-                ],
-            }
-        ]
+        examples = [{
+            "problem": "What is 1+1?",
+            "answer": "2",
+            "interaction_history": [
+                {"role": "user", "content": "What is 1+1?"},
+                {"role": "assistant", "content": "Action: compute(1+1)"},
+                {"role": "user", "content": "Result: 2"},
+                {"role": "assistant", "content": "Final Answer: 2"},
+            ],
+        }]
         runner = EvalRunner.__new__(EvalRunner)
         result = runner._inject_examples(record, examples)
         assert "Previously Completed Tasks" in result.problem
@@ -961,7 +912,6 @@ class TestRunnerEpisodeMode:
     def test_max_prior_examples_constant(self) -> None:
         """Runner should have a FIFO buffer size matching original default."""
         from openjarvis.evals.core.runner import EvalRunner
-
         assert EvalRunner._MAX_PRIOR_EXAMPLES == 3
 
 
@@ -969,13 +919,14 @@ class TestRunnerEpisodeMode:
 # KG variable reference resolution
 # ---------------------------------------------------------------------------
 
-
 class TestKGVariableReference:
     def test_variable_ref_in_scorer(self) -> None:
         """Scorer should handle Final Answer: #N format."""
         # When a variable ref is given and entity IDs are elsewhere in text
         result = extract_kg_answers(
-            "I found the answer.\nThe entity m.02h8b9t matches.\nFinal Answer: #2"
+            "I found the answer.\n"
+            "The entity m.02h8b9t matches.\n"
+            "Final Answer: #2"
         )
         assert "m.02h8b9t" in result
 
@@ -1011,7 +962,8 @@ class TestKGVariableReference:
     def test_variable_ref_with_var_keyword(self) -> None:
         """Should handle 'Final Answer: Variable #2' format."""
         result = extract_kg_answers(
-            "Based on my analysis, m.001 is the answer.\nFinal Answer: Variable #2"
+            "Based on my analysis, m.001 is the answer.\n"
+            "Final Answer: Variable #2"
         )
         assert "m.001" in result
 
@@ -1020,11 +972,12 @@ class TestKGVariableReference:
 # OS action format
 # ---------------------------------------------------------------------------
 
-
 class TestOSActionFormat:
     def test_original_format_act_bash(self) -> None:
         """Should parse original format: Act: bash\\n```bash\\n...\\n```"""
-        cmds = _extract_bash_commands("Act: bash\n```bash\nls -la /tmp\n```")
+        cmds = _extract_bash_commands(
+            "Act: bash\n```bash\nls -la /tmp\n```"
+        )
         assert len(cmds) == 1
         assert "ls -la" in cmds[0]
 
@@ -1042,14 +995,12 @@ class TestOSActionFormat:
 # Per-subset max turns
 # ---------------------------------------------------------------------------
 
-
 class TestMaxTurns:
     def test_db_max_turns(self) -> None:
         from openjarvis.evals.environments.lifelong_agent_env import (
             MAX_TURNS_DB,
             DBEnvironment,
         )
-
         env = DBEnvironment(use_mysql=False)
         assert env.max_turns == MAX_TURNS_DB
         assert env.max_turns == 3
@@ -1059,7 +1010,6 @@ class TestMaxTurns:
             MAX_TURNS_KG,
             KGEnvironment,
         )
-
         env = KGEnvironment()
         assert env.max_turns == MAX_TURNS_KG
         assert env.max_turns == 15
@@ -1069,14 +1019,12 @@ class TestMaxTurns:
             MAX_TURNS_OS,
             OSEnvironment,
         )
-
         env = OSEnvironment()
         assert env.max_turns == MAX_TURNS_OS
         assert env.max_turns == 5
 
     def test_base_default(self) -> None:
         from openjarvis.evals.environments.base import TaskEnvironment
-
         # Can't instantiate ABC, but verify the property exists
         assert hasattr(TaskEnvironment, "max_turns")
 
@@ -1084,7 +1032,6 @@ class TestMaxTurns:
 # ---------------------------------------------------------------------------
 # Numeric tolerance
 # ---------------------------------------------------------------------------
-
 
 class TestNumericTolerance:
     def test_abs_tol_near_zero(self) -> None:

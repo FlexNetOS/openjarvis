@@ -1,5 +1,4 @@
 """Tests for GET /v1/tools endpoint."""
-
 import pytest
 
 try:
@@ -15,7 +14,6 @@ pytestmark = pytest.mark.skipif(
 
 def test_tools_endpoint_returns_list():
     from openjarvis.server.agent_manager_routes import build_tools_list
-
     tools = build_tools_list()
     assert isinstance(tools, list)
     assert len(tools) > 0
@@ -31,7 +29,6 @@ def test_tools_endpoint_returns_list():
 
 def test_tools_includes_channels():
     from openjarvis.server.agent_manager_routes import build_tools_list
-
     tools = build_tools_list()
     names = {t["name"] for t in tools}
     channel_names = {"slack", "telegram", "discord", "email"}
@@ -40,7 +37,6 @@ def test_tools_includes_channels():
 
 def test_browser_meta_group():
     from openjarvis.server.agent_manager_routes import build_tools_list
-
     tools = build_tools_list()
     names = {t["name"] for t in tools}
     assert "browser" in names

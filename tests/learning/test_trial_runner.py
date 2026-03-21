@@ -185,12 +185,8 @@ class TestRunTrial:
     @patch("openjarvis.evals.cli._build_backend")
     @patch("openjarvis.evals.core.runner.EvalRunner")
     def test_run_trial_returns_trial_result(
-        self,
-        mock_runner_cls,
-        mock_build_backend,
-        mock_build_dataset,
-        mock_build_judge,
-        mock_build_scorer,
+        self, mock_runner_cls, mock_build_backend, mock_build_dataset,
+        mock_build_judge, mock_build_scorer,
     ) -> None:
         summary = self._make_summary()
         mock_runner_instance = MagicMock()
@@ -222,12 +218,8 @@ class TestRunTrial:
     @patch("openjarvis.evals.cli._build_backend")
     @patch("openjarvis.evals.core.runner.EvalRunner")
     def test_run_trial_accuracy_from_summary(
-        self,
-        mock_runner_cls,
-        mock_build_backend,
-        mock_build_dataset,
-        mock_build_judge,
-        mock_build_scorer,
+        self, mock_runner_cls, mock_build_backend, mock_build_dataset,
+        mock_build_judge, mock_build_scorer,
     ) -> None:
         summary = self._make_summary(accuracy=0.92)
         mock_runner_cls.return_value.run.return_value = summary
@@ -246,12 +238,8 @@ class TestRunTrial:
     @patch("openjarvis.evals.cli._build_backend")
     @patch("openjarvis.evals.core.runner.EvalRunner")
     def test_run_trial_tokens_summed(
-        self,
-        mock_runner_cls,
-        mock_build_backend,
-        mock_build_dataset,
-        mock_build_judge,
-        mock_build_scorer,
+        self, mock_runner_cls, mock_build_backend, mock_build_dataset,
+        mock_build_judge, mock_build_scorer,
     ) -> None:
         summary = self._make_summary(
             total_input_tokens=3000,
@@ -273,12 +261,8 @@ class TestRunTrial:
     @patch("openjarvis.evals.cli._build_backend")
     @patch("openjarvis.evals.core.runner.EvalRunner")
     def test_run_trial_summary_attached(
-        self,
-        mock_runner_cls,
-        mock_build_backend,
-        mock_build_dataset,
-        mock_build_judge,
-        mock_build_scorer,
+        self, mock_runner_cls, mock_build_backend, mock_build_dataset,
+        mock_build_judge, mock_build_scorer,
     ) -> None:
         summary = self._make_summary()
         mock_runner_cls.return_value.run.return_value = summary
@@ -297,12 +281,8 @@ class TestRunTrial:
     @patch("openjarvis.evals.cli._build_backend")
     @patch("openjarvis.evals.core.runner.EvalRunner")
     def test_run_trial_failure_modes_on_errors(
-        self,
-        mock_runner_cls,
-        mock_build_backend,
-        mock_build_dataset,
-        mock_build_judge,
-        mock_build_scorer,
+        self, mock_runner_cls, mock_build_backend, mock_build_dataset,
+        mock_build_judge, mock_build_scorer,
     ) -> None:
         summary = self._make_summary(errors=5)
         mock_runner_cls.return_value.run.return_value = summary
@@ -322,12 +302,8 @@ class TestRunTrial:
     @patch("openjarvis.evals.cli._build_backend")
     @patch("openjarvis.evals.core.runner.EvalRunner")
     def test_run_trial_no_failure_modes_when_clean(
-        self,
-        mock_runner_cls,
-        mock_build_backend,
-        mock_build_dataset,
-        mock_build_judge,
-        mock_build_scorer,
+        self, mock_runner_cls, mock_build_backend, mock_build_dataset,
+        mock_build_judge, mock_build_scorer,
     ) -> None:
         summary = self._make_summary(errors=0)
         mock_runner_cls.return_value.run.return_value = summary
@@ -346,12 +322,8 @@ class TestRunTrial:
     @patch("openjarvis.evals.cli._build_backend")
     @patch("openjarvis.evals.core.runner.EvalRunner")
     def test_run_trial_closes_backends(
-        self,
-        mock_runner_cls,
-        mock_build_backend,
-        mock_build_dataset,
-        mock_build_judge,
-        mock_build_scorer,
+        self, mock_runner_cls, mock_build_backend, mock_build_dataset,
+        mock_build_judge, mock_build_scorer,
     ) -> None:
         summary = self._make_summary()
         mock_runner_cls.return_value.run.return_value = summary
@@ -373,12 +345,8 @@ class TestRunTrial:
     @patch("openjarvis.evals.cli._build_backend")
     @patch("openjarvis.evals.core.runner.EvalRunner")
     def test_run_trial_populates_sample_scores(
-        self,
-        mock_runner_cls,
-        mock_build_backend,
-        mock_build_dataset,
-        mock_build_judge,
-        mock_build_scorer,
+        self, mock_runner_cls, mock_build_backend, mock_build_dataset,
+        mock_build_judge, mock_build_scorer,
     ) -> None:
         from openjarvis.evals.core.types import EvalResult
 

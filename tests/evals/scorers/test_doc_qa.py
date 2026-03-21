@@ -23,8 +23,10 @@ def _make_record(required_facts):
 
 def test_all_facts_with_citations():
     facts = [
-        {"fact": "reclaims storage from dead tuples", "source_doc_index": 0},
-        {"fact": "must run periodically", "source_doc_index": 0},
+        {"fact": "reclaims storage from dead tuples",
+         "source_doc_index": 0},
+        {"fact": "must run periodically",
+         "source_doc_index": 0},
     ]
     record = _make_record(facts)
     scorer = DocQAScorer()
@@ -43,7 +45,8 @@ def test_all_facts_with_citations():
 
 def test_facts_without_citations():
     facts = [
-        {"fact": "reclaims storage from dead tuples", "source_doc_index": 0},
+        {"fact": "reclaims storage from dead tuples",
+         "source_doc_index": 0},
     ]
     record = _make_record(facts)
     scorer = DocQAScorer()
@@ -67,7 +70,10 @@ def test_partial_facts():
     record = _make_record(facts)
     scorer = DocQAScorer()
 
-    answer = "VACUUM reclaims storage [Doc 1]. It also prevents table bloat [Doc 1]."
+    answer = (
+        "VACUUM reclaims storage [Doc 1]. "
+        "It also prevents table bloat [Doc 1]."
+    )
     is_correct, meta = scorer.score(record, answer)
     assert meta["facts_found"] == 2
     assert 0.6 <= meta["fact_score"] <= 0.7

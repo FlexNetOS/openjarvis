@@ -38,7 +38,6 @@ class _CodeInterpreterStub(BaseTool):
         # Simple simulation: if it contains print(), capture the content
         if "print(" in code:
             import re
-
             match = re.search(r"print\((.+?)\)", code)
             if match:
                 try:
@@ -135,12 +134,13 @@ class TestNativeOpenHandsAgent:
         engine = MagicMock()
         engine.engine_id = "mock"
         engine.generate.side_effect = [
-            _engine_response("Let me calculate:\n```python\nprint(2+2)\n```"),
+            _engine_response(
+                "Let me calculate:\n```python\nprint(2+2)\n```"
+            ),
             _engine_response("The result is 4."),
         ]
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CodeInterpreterStub()],
         )
         result = agent.run("What is 2+2?")
@@ -159,8 +159,7 @@ class TestNativeOpenHandsAgent:
             _engine_response("First was 2, second was 9."),
         ]
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CodeInterpreterStub()],
         )
         result = agent.run("Two calculations")
@@ -176,8 +175,7 @@ class TestNativeOpenHandsAgent:
             "More code:\n```python\nprint('hello')\n```"
         )
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CodeInterpreterStub()],
             max_turns=3,
         )
@@ -207,8 +205,7 @@ class TestNativeOpenHandsAgent:
             _engine_response("Done."),
         ]
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CodeInterpreterStub()],
             bus=bus,
         )
@@ -241,12 +238,13 @@ class TestNativeOpenHandsAgent:
         engine = MagicMock()
         engine.engine_id = "mock"
         engine.generate.side_effect = [
-            _engine_response('Action: calculator\nAction Input: {"expression": "7*6"}'),
+            _engine_response(
+                'Action: calculator\nAction Input: {"expression": "7*6"}'
+            ),
             _engine_response("The answer is 42."),
         ]
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CalculatorStub()],
         )
         result = agent.run("What is 7 times 6?")
@@ -287,8 +285,7 @@ class TestNativeOpenHandsAgent:
         engine.engine_id = "mock"
         engine.generate.return_value = _engine_response("Ok")
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CodeInterpreterStub(), _CalculatorStub()],
         )
         agent.run("Hello")
@@ -304,8 +301,7 @@ class TestNativeOpenHandsAgent:
         engine.engine_id = "mock"
         engine.generate.return_value = _engine_response("Ok")
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CodeInterpreterStub(), _CalculatorStub()],
         )
         agent.run("Hello")
@@ -325,8 +321,7 @@ class TestNativeOpenHandsAgent:
             "Still working:\n```python\nx = 1\n```"
         )
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CodeInterpreterStub()],
             max_turns=2,
         )
@@ -344,8 +339,7 @@ class TestNativeOpenHandsAgent:
             _engine_response("Got 42."),
         ]
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CodeInterpreterStub()],
         )
         agent.run("Print 42")
@@ -364,7 +358,8 @@ class TestNativeOpenHandsAgent:
         agent = NativeOpenHandsAgent(engine, "test-model", bus=bus)
         agent.run("test input")
         start_events = [
-            e for e in bus.history if e.event_type == EventType.AGENT_TURN_START
+            e for e in bus.history
+            if e.event_type == EventType.AGENT_TURN_START
         ]
         assert len(start_events) == 1
         assert start_events[0].data["agent"] == "native_openhands"
@@ -394,12 +389,13 @@ class TestNativeOpenHandsAgent:
         engine = MagicMock()
         engine.engine_id = "mock"
         engine.generate.side_effect = [
-            _engine_response("<tool_call>calculator\n$expression=7*6</calculator>"),
+            _engine_response(
+                '<tool_call>calculator\n$expression=7*6</calculator>'
+            ),
             _engine_response("The answer is 42."),
         ]
         agent = NativeOpenHandsAgent(
-            engine,
-            "test-model",
+            engine, "test-model",
             tools=[_CalculatorStub()],
         )
         result = agent.run("What is 7 times 6?")
@@ -412,7 +408,9 @@ class TestNativeOpenHandsAgent:
         engine = MagicMock()
         engine.engine_id = "mock"
         engine.generate.side_effect = [
-            _engine_response('Action: calculator\nAction Input: {"expression": "1+1"}'),
+            _engine_response(
+                'Action: calculator\nAction Input: {"expression": "1+1"}'
+            ),
             _engine_response("Done."),
         ]
         # Make calculator return very long output
@@ -514,8 +512,7 @@ class TestUrlExpansion:
         import httpx
 
         monkeypatch.setattr(
-            httpx,
-            "get",
+            httpx, "get",
             MagicMock(side_effect=Exception("Connection error")),
         )
         text, expanded = NativeOpenHandsAgent._expand_urls(

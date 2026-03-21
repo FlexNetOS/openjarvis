@@ -45,7 +45,8 @@ class TestLearningConfig:
     def test_toml_loading_with_learning(self, tmp_path: Path) -> None:
         toml_file = tmp_path / "config.toml"
         toml_file.write_text(
-            '[learning]\ndefault_policy = "grpo"\nreward_weights = "latency=0.5"\n'
+            '[learning]\ndefault_policy = "grpo"\n'
+            'reward_weights = "latency=0.5"\n'
         )
         cfg = load_config(toml_file)
         assert cfg.learning.routing.policy == "grpo"
@@ -54,9 +55,9 @@ class TestLearningConfig:
     def test_toml_loading_nested(self, tmp_path: Path) -> None:
         toml_file = tmp_path / "config.toml"
         toml_file.write_text(
-            "[learning]\nenabled = true\n\n"
+            '[learning]\nenabled = true\n\n'
             '[learning.routing]\npolicy = "learned"\n\n'
-            "[learning.metrics]\nlatency_weight = 0.5\n"
+            '[learning.metrics]\nlatency_weight = 0.5\n'
         )
         cfg = load_config(toml_file)
         assert cfg.learning.enabled is True

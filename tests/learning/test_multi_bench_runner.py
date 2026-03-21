@@ -74,9 +74,7 @@ class TestBenchmarkSpec:
 class TestBenchmarkScore:
     def test_creation(self):
         score = BenchmarkScore(
-            benchmark="hle",
-            accuracy=0.75,
-            weight=0.2,
+            benchmark="hle", accuracy=0.75, weight=0.2,
         )
         assert score.benchmark == "hle"
         assert score.accuracy == 0.75

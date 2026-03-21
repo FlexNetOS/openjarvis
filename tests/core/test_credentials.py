@@ -1,5 +1,4 @@
 """Tests for credential persistence module."""
-
 import os
 
 import pytest

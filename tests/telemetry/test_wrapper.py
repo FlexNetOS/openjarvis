@@ -73,7 +73,8 @@ class TestInstrumentedGenerate:
             bus=bus,
         )
         telem_events = [
-            e for e in bus.history if e.event_type == EventType.TELEMETRY_RECORD
+            e for e in bus.history
+            if e.event_type == EventType.TELEMETRY_RECORD
         ]
         assert len(telem_events) == 1
         rec = telem_events[0].data["record"]
@@ -90,7 +91,8 @@ class TestInstrumentedGenerate:
             bus=bus,
         )
         telem_events = [
-            e for e in bus.history if e.event_type == EventType.TELEMETRY_RECORD
+            e for e in bus.history
+            if e.event_type == EventType.TELEMETRY_RECORD
         ]
         rec = telem_events[0].data["record"]
         assert rec.latency_seconds >= 0

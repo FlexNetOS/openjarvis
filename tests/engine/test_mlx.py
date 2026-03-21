@@ -51,7 +51,9 @@ class TestMLXGenerate:
                 side_effect=httpx.ConnectError("refused")
             )
             with pytest.raises(EngineConnectionError):
-                engine.generate([Message(role=Role.USER, content="Hi")], model="m")
+                engine.generate(
+                    [Message(role=Role.USER, content="Hi")], model="m"
+                )
 
 
 class TestMLXHealth:

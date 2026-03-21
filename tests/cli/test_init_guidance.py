@@ -17,8 +17,12 @@ class TestInitShowsNextSteps:
         config_dir = tmp_path / ".openjarvis"
         config_path = config_dir / "config.toml"
         with (
-            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
-            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch(
+                "openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir
+            ),
+            mock.patch(
+                "openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path
+            ),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp"])
         assert result.exit_code == 0
@@ -31,8 +35,12 @@ class TestInitShowsNextSteps:
         config_dir = tmp_path / ".openjarvis"
         config_path = config_dir / "config.toml"
         with (
-            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
-            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch(
+                "openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir
+            ),
+            mock.patch(
+                "openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path
+            ),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp"])
         assert result.exit_code == 0
@@ -90,8 +98,12 @@ class TestMinimalConfig:
         config_dir = tmp_path / ".openjarvis"
         config_path = config_dir / "config.toml"
         with (
-            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
-            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch(
+                "openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir
+            ),
+            mock.patch(
+                "openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path
+            ),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "ollama"])
         assert result.exit_code == 0
@@ -107,8 +119,12 @@ class TestMinimalConfig:
         config_dir = tmp_path / ".openjarvis"
         config_path = config_dir / "config.toml"
         with (
-            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
-            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch(
+                "openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir
+            ),
+            mock.patch(
+                "openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path
+            ),
         ):
             result = CliRunner().invoke(cli, ["init", "--full", "--engine", "ollama"])
         assert result.exit_code == 0

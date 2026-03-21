@@ -55,7 +55,9 @@ class _MockTool(BaseTool):
 
     def execute(self, **params) -> ToolResult:
         expr = params.get("expression", "")
-        return ToolResult(tool_name="calculator", content=str(expr), success=True)
+        return ToolResult(
+            tool_name="calculator", content=str(expr), success=True
+        )
 
 
 # -- Tests -------------------------------------------------------------------
@@ -64,12 +66,10 @@ class _MockTool(BaseTool):
 class TestStructuredMode:
     def test_thought_tool_input_then_final_answer(self):
         """Test full structured loop: TOOL call -> FINAL_ANSWER."""
-        engine = _MockEngine(
-            [
-                "THOUGHT: I need to calculate\nTOOL: calculator\nINPUT: 2+2",
-                "THOUGHT: Got result\nFINAL_ANSWER: 4",
-            ]
-        )
+        engine = _MockEngine([
+            "THOUGHT: I need to calculate\nTOOL: calculator\nINPUT: 2+2",
+            "THOUGHT: Got result\nFINAL_ANSWER: 4",
+        ])
         agent = OrchestratorAgent(
             engine=engine,
             model="test",
@@ -83,11 +83,9 @@ class TestStructuredMode:
 
     def test_direct_final_answer(self):
         """Test that FINAL_ANSWER on first turn works."""
-        engine = _MockEngine(
-            [
-                "THOUGHT: Easy\nFINAL_ANSWER: Paris",
-            ]
-        )
+        engine = _MockEngine([
+            "THOUGHT: Easy\nFINAL_ANSWER: Paris",
+        ])
         agent = OrchestratorAgent(
             engine=engine,
             model="test",

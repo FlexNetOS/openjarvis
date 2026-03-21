@@ -38,13 +38,10 @@ class TestWSBridge:
     def test_websocket_receives_events(self, app, event_bus):
         client = TestClient(app)
         with client.websocket_connect("/v1/agents/events") as ws:
-            event_bus.publish(
-                EventType.AGENT_TICK_START,
-                {
-                    "agent_id": "test-123",
-                    "agent_name": "test",
-                },
-            )
+            event_bus.publish(EventType.AGENT_TICK_START, {
+                "agent_id": "test-123",
+                "agent_name": "test",
+            })
             time.sleep(0.05)  # Let call_soon_threadsafe deliver to queue
             data = ws.receive_json()
             assert data["type"] == "agent_tick_start"

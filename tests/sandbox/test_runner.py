@@ -70,9 +70,7 @@ class TestBuildDockerArgs:
         runner = ContainerRunner()
         with patch("shutil.which", return_value="/usr/bin/docker"):
             args = runner._build_docker_args(
-                "test-container",
-                [],
-                None,
+                "test-container", [], None,
             )
         assert "/usr/bin/docker" in args
         assert "run" in args
@@ -87,9 +85,7 @@ class TestBuildDockerArgs:
         runner = ContainerRunner()
         with patch("shutil.which", return_value="/usr/bin/docker"):
             args = runner._build_docker_args(
-                "test-container",
-                ["/data/project"],
-                None,
+                "test-container", ["/data/project"], None,
             )
         assert "-v" in args
         idx = args.index("-v")
@@ -99,9 +95,7 @@ class TestBuildDockerArgs:
         runner = ContainerRunner()
         with patch("shutil.which", return_value="/usr/bin/docker"):
             args = runner._build_docker_args(
-                "test-container",
-                [],
-                {"FOO": "bar"},
+                "test-container", [], {"FOO": "bar"},
             )
         assert "-e" in args
         idx = args.index("-e")
@@ -112,62 +106,40 @@ class TestContainerRunnerRun:
     def test_successful_run(self):
         runner = ContainerRunner()
         output = _wrap_output({"content": "Hello!"})
-        with (
-            patch("shutil.which", return_value="/usr/bin/docker"),
-            patch(
-                "subprocess.run",
-                return_value=_mock_proc(
-                    stdout=output,
-                ),
-            ),
-        ):
+        with patch("shutil.which", return_value="/usr/bin/docker"), \
+             patch("subprocess.run", return_value=_mock_proc(
+                 stdout=output,
+             )):
             result = runner.run({"prompt": "test"})
         assert result["content"] == "Hello!"
 
     def test_timeout(self):
         runner = ContainerRunner(timeout=5)
-        with (
-            patch("shutil.which", return_value="/usr/bin/docker"),
-            patch(
-                "subprocess.run",
-                side_effect=subprocess.TimeoutExpired(
-                    cmd=["docker"],
-                    timeout=5,
-                ),
-            ),
-            patch.object(runner, "stop"),
-        ):
+        with patch("shutil.which", return_value="/usr/bin/docker"), \
+             patch("subprocess.run", side_effect=subprocess.TimeoutExpired(
+                 cmd=["docker"], timeout=5,
+             )), \
+             patch.object(runner, "stop"):
             result = runner.run({"prompt": "test"})
         assert result["error"] is True
         assert result["error_type"] == "timeout"
 
     def test_nonzero_exit(self):
         runner = ContainerRunner()
-        with (
-            patch("shutil.which", return_value="/usr/bin/docker"),
-            patch(
-                "subprocess.run",
-                return_value=_mock_proc(
-                    returncode=1,
-                    stderr="OOM killed",
-                ),
-            ),
-        ):
+        with patch("shutil.which", return_value="/usr/bin/docker"), \
+             patch("subprocess.run", return_value=_mock_proc(
+                 returncode=1, stderr="OOM killed",
+             )):
             result = runner.run({"prompt": "test"})
         assert result["error"] is True
         assert "OOM killed" in result["content"]
 
     def test_no_sentinel_output(self):
         runner = ContainerRunner()
-        with (
-            patch("shutil.which", return_value="/usr/bin/docker"),
-            patch(
-                "subprocess.run",
-                return_value=_mock_proc(
-                    stdout="plain text output",
-                ),
-            ),
-        ):
+        with patch("shutil.which", return_value="/usr/bin/docker"), \
+             patch("subprocess.run", return_value=_mock_proc(
+                 stdout="plain text output",
+             )):
             result = runner.run({"prompt": "test"})
         assert result["content"] == "plain text output"
 
@@ -183,10 +155,8 @@ class TestContainerRunnerRuntimeCheck:
 class TestCleanupOrphans:
     def test_cleanup_orphans(self):
         runner = ContainerRunner()
-        with (
-            patch("shutil.which", return_value="/usr/bin/docker"),
-            patch("subprocess.run") as mock_run,
-        ):
+        with patch("shutil.which", return_value="/usr/bin/docker"), \
+             patch("subprocess.run") as mock_run:
             mock_run.return_value = _mock_proc(stdout="abc123\ndef456")
             runner.cleanup_orphans()
         assert mock_run.call_count == 2  # ps + rm
@@ -228,10 +198,8 @@ class TestSandboxedAgentInit:
         runner = MagicMock(spec=ContainerRunner)
 
         agent = SandboxedAgent(
-            inner,
-            runner,
-            engine=inner._engine,
-            model="test-model",
+            inner, runner,
+            engine=inner._engine, model="test-model",
         )
         assert agent._wrapped_agent is inner
         assert agent._runner is runner
@@ -251,10 +219,7 @@ class TestSandboxedAgentRun:
 
         engine = MagicMock()
         agent = SandboxedAgent(
-            inner,
-            runner,
-            engine=engine,
-            model="test-model",
+            inner, runner, engine=engine, model="test-model",
         )
         result = agent.run("hello")
 
@@ -281,10 +246,7 @@ class TestSandboxedAgentRun:
 
         engine = MagicMock()
         agent = SandboxedAgent(
-            inner,
-            runner,
-            engine=engine,
-            model="m",
+            inner, runner, engine=engine, model="m",
         )
         result = agent.run("compute")
 
@@ -302,11 +264,7 @@ class TestSandboxedAgentRun:
         bus = EventBus(record_history=True)
         engine = MagicMock()
         agent = SandboxedAgent(
-            inner,
-            runner,
-            engine=engine,
-            model="m",
-            bus=bus,
+            inner, runner, engine=engine, model="m", bus=bus,
         )
         agent.run("test")
 

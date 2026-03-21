@@ -24,14 +24,12 @@ class TestScanResultFromJson:
 
     def test_empty_findings(self):
         from openjarvis._rust_bridge import scan_result_from_json
-
         result = scan_result_from_json('{"findings": []}')
         assert result.clean
         assert result.findings == []
 
     def test_with_findings(self):
         from openjarvis._rust_bridge import scan_result_from_json
-
         data = {
             "findings": [
                 {
@@ -56,7 +54,6 @@ class TestInjectionResultFromJson:
 
     def test_clean(self):
         from openjarvis._rust_bridge import injection_result_from_json
-
         data = {"is_clean": True, "findings": [], "threat_level": "low"}
         result = injection_result_from_json(json.dumps(data))
         assert result.is_clean
@@ -64,7 +61,6 @@ class TestInjectionResultFromJson:
 
     def test_with_findings(self):
         from openjarvis._rust_bridge import injection_result_from_json
-
         data = {
             "is_clean": False,
             "findings": [
@@ -90,13 +86,11 @@ class TestRetrievalResultsFromJson:
 
     def test_empty(self):
         from openjarvis._rust_bridge import retrieval_results_from_json
-
         results = retrieval_results_from_json("[]")
         assert results == []
 
     def test_with_items(self):
         from openjarvis._rust_bridge import retrieval_results_from_json
-
         data = [
             {
                 "content": "hello world",
@@ -114,7 +108,6 @@ class TestRetrievalResultsFromJson:
 
     def test_metadata_as_string(self):
         from openjarvis._rust_bridge import retrieval_results_from_json
-
         data = [
             {
                 "content": "test",
