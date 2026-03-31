@@ -51,7 +51,7 @@ You also need a local inference backend: [Ollama](https://ollama.com), [vLLM](ht
 
 ```bash
 # 1. Install and detect hardware
-git clone https://github.com/open-jarvis/OpenJarvis.git
+git clone https://github.com/FlexNetOS/OpenJarvis.git
 cd OpenJarvis
 uv sync
 uv run jarvis init
@@ -76,7 +76,7 @@ We welcome contributions! See the [Contributing Guide](CONTRIBUTING.md) for ince
 Quick start for contributors:
 
 ```bash
-git clone https://github.com/open-jarvis/OpenJarvis.git
+git clone https://github.com/FlexNetOS/OpenJarvis.git
 cd OpenJarvis
 uv sync --extra dev
 uv run pre-commit install
