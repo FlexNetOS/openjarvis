@@ -28,10 +28,13 @@ Personal AI agents are exploding in popularity, but nearly all of them still rou
 
 OpenJarvis is that stack. It is an opinionated framework for local-first personal AI, built around three core ideas: shared primitives for building on-device agents; evaluations that treat energy, FLOPs, latency, and dollar cost as first-class constraints alongside accuracy; and a learning loop that improves models using local trace data. The goal is simple: make it possible to build personal AI agents that run locally by default, calling the cloud only when truly necessary. OpenJarvis aims to be both a research platform and a production foundation for local AI, in the spirit of PyTorch.
 
-## Installation
+## Installation - 
+
+### **Clone "main-dev" branch**
+
 
 ```bash
-git clone https://github.com/open-jarvis/OpenJarvis.git
+git clone https://github.com/FlexNetOS/OpenJarvis.git
 cd OpenJarvis
 uv sync                           # core framework
 uv sync --extra server             # + FastAPI server
